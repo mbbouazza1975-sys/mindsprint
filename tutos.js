@@ -185,6 +185,50 @@ const TUTOS = {
     legend: l => l === 'E' ? '4 + 6 + 5 = 15 → touche ces trois bulles, dans n’importe quel ordre.' : '5 + 7 = 12 → touche la bulle 5 puis la bulle 7 (l’ordre n’a pas d’importance). Un seul couple marche à chaque fois.',
     oops: 'Le total n’est pas bon : additionne les bulles choisies et compare à l’ardoise.',
     goal: 3
+  },
+  mystere: {
+    but: 'Devine l’image avant qu’elle se dévoile',
+    rules: {
+      base: ['Des carreaux cachent une image et disparaissent un à un.', 'Touche la bonne réponse dès que tu l’as reconnue.', 'Plus tu réponds tôt, plus tu gagnes de points.'],
+      N: ['Parfois, les 4 réponses sont de la même famille : regarde bien.'], E: ['Les 4 réponses sont toujours de la même famille.']
+    },
+    ex: () => `<div class="ex-myst"><span class="ex-emo big">🦒</span><span class="ex-tiles">${Array.from({ length: 16 }, (_, i) => `<i class="${[0, 2, 3, 5, 6, 9, 12, 13, 15].includes(i) ? '' : 'off'}"></i>`).join('')}</span></div><div class="ex-row">${['Girafe', 'Zèbre', 'Hibou', 'Tortue'].map((w, i) => `<span class="ex-word ${i === 0 ? 'good' : ''}">${w}</span>`).join('')}</div>`,
+    legend: () => 'On voit déjà un long cou tacheté : c’est la girafe ! Pas besoin d’attendre que tout soit dévoilé.',
+    oops: 'Pas celle-là. Regarde les morceaux déjà visibles : forme, couleurs, détails.',
+    goal: 2
+  },
+  vitraux: {
+    but: 'Complète le vitrail du phare',
+    rules: {
+      base: ['Regarde chaque ligne de gauche à droite.', 'Trouve ce qui change : la forme, la couleur ou le nombre.', 'Choisis la pièce qui respecte toutes les règles.'],
+      N: ['Trois choses changent : la forme par ligne, la couleur en diagonale et le nombre par colonne. Vérifie-les une à une.'], E: ['Les trois choses changent : avance règle par règle.']
+    },
+    ex: () => `<div class="ex-vit">${[[0, 1], [0, 2], [0, 3], [1, 1], [1, 2], [1, 3], [2, 1], [2, 2], null].map(v => v ? `<span>${vitralCell({ shape: v[0], color: 0, count: v[1] }).replace('class="vc"', 'class="vc mini"')}</span>` : '<span class="q">?</span>').join('')}</div><div class="ex-row"><span class="ex-word good">${vitralCell({ shape: 2, color: 0, count: 3 }).replace('class="vc"', 'class="vc mini"')}</span><span class="ex-word">${vitralCell({ shape: 2, color: 0, count: 2 }).replace('class="vc"', 'class="vc mini"')}</span></div>`,
+    legend: () => 'Chaque ligne a sa forme (ronds, carrés, triangles) et le nombre augmente de gauche à droite : 1, 2, 3. Il manque donc 3 triangles.',
+    oops: 'Vérifie chaque règle : la forme de la ligne, la couleur, puis le nombre.',
+    goal: 2
+  },
+  suites: {
+    but: 'Trouve le nombre qui suit',
+    rules: {
+      base: ['Regarde comment on passe d’une bouée à la suivante.', 'Applique la même règle pour trouver le nombre caché.', 'Ça peut être +, −, × ou deux règles qui alternent.'],
+      E: ['Ici, les règles sont plus rusées : carrés, doubles, additions des deux précédents…']
+    },
+    ex: () => `<div class="ex-row">${[3, 5, 7, 9, 11].map(v => `<span class="ex-buoy">${v}</span>`).join('')}<span class="ex-buoy q">?</span></div><div class="ex-row"><span class="ex-word good">13</span><span class="ex-word">12</span><span class="ex-word">15</span></div>`,
+    legend: () => '+2 à chaque fois : 3, 5, 7, 9, 11… donc 13.',
+    oops: 'Calcule l’écart entre deux bouées voisines, puis vérifie qu’il marche partout.',
+    goal: 2
+  },
+  boutique: {
+    but: 'Paie le prix exact',
+    rules: {
+      base: ['Lis le prix sur l’étiquette.', 'Touche les pièces et billets pour faire exactement ce prix.', 'Trop payé ? Le comptoir se vide et tu recommences.'],
+      E: ['Bonus si tu utilises le moins de pièces possible.']
+    },
+    ex: l => `<div class="ex-op">🍦 ${l === 'F' ? '7 €' : '3,70 €'}</div><div class="ex-row">${(l === 'F' ? ['5 €', '2 €'] : ['2 €', '1 €', '50 c', '20 c']).map(v => `<span class="ex-coin">${v}</span>`).join('<b>+</b>')}</div>`,
+    legend: l => l === 'F' ? '5 € + 2 € = 7 € : le compte est juste !' : '2 € + 1 € + 50 c + 20 c = 3,70 € : le compte est juste !',
+    oops: 'Trop payé ! Commence par les grosses pièces, puis complète avec les petites.',
+    goal: 3
   }
 };
 

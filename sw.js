@@ -1,6 +1,6 @@
 /* MindSprint — service worker : fonctionne hors connexion */
-const CACHE = 'mindsprint-v3';
-const CORE = ['./', 'index.html', 'styles.css', 'games.js', 'app.js', 'design.css', 'scenes.js', 'tutos.js', 'manifest.webmanifest',
+const CACHE = 'mindsprint-v4';
+const CORE = ['./', 'index.html', 'styles.css', 'games.js', 'app.js', 'design.css', 'theme.css', 'scenes.js', 'tutos.js', 'fonts/outfit.woff2', 'fonts/nunito.woff2', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
@@ -12,13 +12,9 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  // Polices Google : cache puis réseau en arrière-plan
-  if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
-    e.respondWith(caches.open(CACHE).then(async c => {
-      const hit = await c.match(req);
-      const net = fetch(req).then(r => { c.put(req, r.clone()); return r; }).catch(() => hit);
-      return hit || net;
-    }));
+  // Polices auto-hébergées : cache d'abord (elles ne changent pas)
+  if (url.origin === location.origin && url.pathname.endsWith('.woff2')) {
+    e.respondWith(caches.match(req).then(r => r || fetch(req).then(n => { const cp = n.clone(); caches.open(CACHE).then(c => c.put(req, cp)); return n; })));
     return;
   }
   if (url.origin !== location.origin) return;

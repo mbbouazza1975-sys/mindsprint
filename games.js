@@ -1,6 +1,6 @@
 'use strict';
 /* =========================================================
-   MindSprint — les 14 épreuves (7 rapidité, 7 logique)
+   MindSprint — les 18 épreuves (9 rapidité, 9 logique)
    Chaque épreuve : run(c) où c = contexte fourni par app.js
    ========================================================= */
 
@@ -1033,4 +1033,248 @@ const G_BULLES = {
   }
 };
 
-const GAMES = [G_LANTERNE, G_BATEAUX, G_VENT, G_CONSTEL, G_GUE, G_LUCIOLES, G_PHARES, G_COLLIER, G_RECIF, G_COURANTS, G_CABINES, G_MOUETTES, G_CRABES, G_BULLES];
+/* =========================================================
+   NOUVELLES ÉPREUVES (v4) : image mystère, vitraux (QI), suites, boutique
+   ========================================================= */
+const MYST = {
+  animaux: [['🐘', 'Éléphant'], ['🦒', 'Girafe'], ['🐢', 'Tortue'], ['🦉', 'Hibou'], ['🐙', 'Pieuvre'], ['🦋', 'Papillon'], ['🐧', 'Manchot'], ['🦊', 'Renard'], ['🐌', 'Escargot'], ['🦀', 'Crabe'], ['🐝', 'Abeille'], ['🦓', 'Zèbre'], ['🐳', 'Baleine'], ['🦔', 'Hérisson'], ['🐊', 'Crocodile'], ['🦩', 'Flamant rose']],
+  objets: [['⏰', 'Réveil'], ['🔑', 'Clé'], ['☂️', 'Parapluie'], ['🎸', 'Guitare'], ['🔦', 'Lampe de poche'], ['✂️', 'Ciseaux'], ['🧲', 'Aimant'], ['🎈', 'Ballon de baudruche'], ['📷', 'Appareil photo'], ['🔨', 'Marteau'], ['🧭', 'Boussole'], ['⚽', 'Ballon de foot'], ['🪁', 'Cerf-volant'], ['🎁', 'Cadeau'], ['🕯️', 'Bougie'], ['🧸', 'Ours en peluche']],
+  nourriture: [['🍓', 'Fraise'], ['🍌', 'Banane'], ['🍕', 'Pizza'], ['🥕', 'Carotte'], ['🍉', 'Pastèque'], ['🧀', 'Fromage'], ['🍩', 'Beignet'], ['🥐', 'Croissant'], ['🍍', 'Ananas'], ['🌽', 'Maïs'], ['🍒', 'Cerises'], ['🥦', 'Brocoli']],
+  vehicules: [['🚒', 'Camion de pompiers'], ['🚁', 'Hélicoptère'], ['🚲', 'Vélo'], ['⛵', 'Voilier'], ['🚀', 'Fusée'], ['🚂', 'Locomotive'], ['🚜', 'Tracteur'], ['🛴', 'Trottinette'], ['✈️', 'Avion'], ['🚌', 'Bus']],
+  personnages: [['👩‍🚒', 'Pompière'], ['👨‍🍳', 'Cuisinier'], ['🧑‍🚀', 'Astronaute'], ['👮', 'Policier'], ['🧙', 'Magicien'], ['🧑‍⚕️', 'Médecin'], ['🤴', 'Prince'], ['👸', 'Princesse'], ['🧜', 'Sirène'], ['🧑‍🌾', 'Fermier'], ['🦸', 'Super-héros'], ['🥷', 'Ninja']],
+  chiffres: [['2', 'Deux'], ['3', 'Trois'], ['4', 'Quatre'], ['5', 'Cinq'], ['6', 'Six'], ['7', 'Sept'], ['8', 'Huit'], ['9', 'Neuf']]
+};
+const MYST_CAT = { animaux: 'un animal', objets: 'un objet', nourriture: 'quelque chose à manger', vehicules: 'un véhicule', personnages: 'un personnage', chiffres: 'un chiffre' };
+
+const G_MYSTERE = {
+  id: 'mystere', name: 'L’image mystère', cat: 'speed', color: '#9333EA', fg: '#fff', icon: '🖼️',
+  rule: () => 'Une image se dévoile petit à petit sous des carreaux. Devine le plus vite possible ce qu’elle représente parmi les 4 réponses.',
+  info: () => '8 images',
+  run(c) {
+    const P = c.L({ F: { step: 420, same: false, grid: 6 }, N: { step: 300, same: .5, grid: 7 }, E: { step: 230, same: 1, grid: 8 } });
+    const ROUNDS = 8;
+    c.stage.innerHTML = `<div class="myst-cat plaque" id="mc"></div><div class="myst" id="my"><div class="myst-img" id="mi"></div><div class="myst-grid" id="mg"></div></div><div class="answers c2" id="ch"></div>`;
+    const mi = $('#mi', c.stage), mg = $('#mg', c.stage), ch = $('#ch', c.stage), mc = $('#mc', c.stage);
+    let r = 0, total = 0, okN = 0;
+    const used = new Set();
+    c.score(0);
+    function next() {
+      if (r >= ROUNDS) return c.done(total, `${okN}/${ROUNDS} image${okN > 1 ? 's' : ''} trouvée${okN > 1 ? 's' : ''}`);
+      const cats = Object.keys(MYST);
+      let cat, item;
+      do { cat = c.rng.pick(cats); item = c.rng.pick(MYST[cat]); } while (used.has(item[0]));
+      used.add(item[0]);
+      const sameCat = P.same === 1 || (P.same && c.rng.chance(P.same));
+      const pool = sameCat ? MYST[cat].filter(x => x !== item) : cats.filter(k => k !== cat).map(k => c.rng.pick(MYST[k]));
+      const opts = c.rng.shuffle([item, ...c.rng.shuffle(pool.slice()).slice(0, 3)]);
+      mc.textContent = sameCat ? `C’est ${MYST_CAT[cat]}… lequel ?` : 'Qu’est-ce que c’est ?';
+      mi.innerHTML = cat === 'chiffres' ? `<span class="myst-num">${item[0]}</span>` : `<span class="myst-emo">${item[0]}</span>`;
+      const N = P.grid * P.grid;
+      mg.style.gridTemplateColumns = `repeat(${P.grid},1fr)`;
+      mg.innerHTML = Array.from({ length: N }, () => '<i></i>').join('');
+      const order = c.rng.shuffle([...Array(N).keys()]);
+      let shown = 0, answered = false, tick = null;
+      const tiles = mg.children;
+      const reveal = () => {
+        if (answered || c.over) return;
+        if (shown < N) { tiles[order[shown++]].classList.add('off'); if (shown < N) tick = c.later(reveal, c.tm(P.step)); else tick = c.later(() => finish(null), 2500); }
+      };
+      function finish(btn) {
+        if (answered) return; answered = true; c.cancel(tick);
+        const right = btn && btn.dataset.ok;
+        if (right) { okN++; const cover = 1 - shown / N; total += (100 / ROUNDS) * (0.35 + 0.65 * cover); c.good(btn, true); }
+        else { if (btn) c.bad(btn); const g2 = $('[data-ok]', ch); if (g2) g2.classList.add('reveal'); }
+        [...tiles].forEach(t => t.classList.add('off'));
+        c.score(okN); r++;
+        c.later(next, right ? 700 : 1300);
+      }
+      ch.innerHTML = '';
+      opts.forEach(o => {
+        const b = document.createElement('button'); b.className = 'ans word'; b.textContent = o[1];
+        if (o === item) { b.dataset.ok = '1'; }
+        b.addEventListener('pointerdown', e => { e.preventDefault(); if (c.over || answered) return; finish(b); });
+        ch.appendChild(b);
+      });
+      if (c.practice) c.ok(ch.querySelector('[data-ok]'));
+      tick = c.later(reveal, 500);
+    }
+    next();
+  }
+};
+
+/* --- Vitraux : matrices 3×3 (QI ludique) --- */
+function vitralCell(a) {
+  const n = a.count, size = n === 1 ? 46 : n === 2 ? 34 : 26;
+  return `<span class="vc n${n}">${Array.from({ length: n }, () => `<svg viewBox="0 0 100 100" style="width:${size}px;height:${size}px">${shapeInner(a.shape, COLORS[a.color].h, 7)}</svg>`).join('')}</span>`;
+}
+const G_VITRAUX = {
+  id: 'vitraux', name: 'Les vitraux du phare', cat: 'logic', color: '#4338CA', fg: '#fff', icon: '🪟',
+  rule: () => 'Chaque ligne du vitrail suit des règles (forme, couleur, nombre). Trouve la pièce qui complète la case vide.',
+  info: () => '8 vitraux',
+  run(c) {
+    const P = c.L({ F: { rules: 1, lim: 25 }, N: { rules: 2, lim: 22 }, E: { rules: 3, lim: 20 } });
+    const ROUNDS = 8;
+    c.stage.innerHTML = `<div class="vitrail" id="vt"></div><p class="plaque small" style="margin:0">Quelle pièce va dans le « ? » ?</p><div class="answers c2" id="ch"></div>`;
+    const vt = $('#vt', c.stage), ch = $('#ch', c.stage);
+    let r = 0, total = 0, okN = 0;
+    c.score(0);
+    const key = a => `${a.shape}-${a.color}-${a.count}`;
+    function gen() {
+      const R = c.rng;
+      const idx = { row: (rr, cc) => rr, col: (rr, cc) => cc, latin: (rr, cc) => (rr + cc) % 3, latin2: (rr, cc) => (rr + 2 * cc) % 3, const: () => 0 };
+      let T;
+      if (c.level === 'F' || r < 1) T = R.chance(.5) ? { shape: 'row', count: 'col', color: 'const' } : { color: 'row', count: 'col', shape: 'const' };
+      else if (c.level === 'N' || r < 2) T = R.chance(.5) ? { shape: 'row', color: 'latin', count: 'col' } : { color: 'row', shape: 'latin', count: 'col' };
+      else T = R.chance(.5) ? { shape: 'latin', color: 'latin2', count: 'col' } : { shape: 'latin2', color: 'latin', count: 'row' };
+      const vals = { shape: R.shuffle([0, 1, 2, 3]).slice(0, 3), color: R.shuffle([0, 1, 2, 3]).slice(0, 3), count: R.chance(.5) ? [1, 2, 3] : [3, 2, 1] };
+      const grid = [];
+      for (let rr = 0; rr < 3; rr++) for (let cc = 0; cc < 3; cc++) {
+        const o = {}; ['shape', 'color', 'count'].forEach(a => o[a] = vals[a][idx[T[a]](rr, cc)]); grid.push(o);
+      }
+      const ans = grid[8];
+      const opts = [ans], seen = new Set([key(ans)]);
+      let guard = 0;
+      while (opts.length < 4 && guard++ < 200) {
+        const a = R.pick(['shape', 'color', 'count']), d = { ...ans };
+        if (a === 'count') d.count = R.int(1, 3); else d[a] = R.pick(vals[a]);
+        if (!seen.has(key(d))) { seen.add(key(d)); opts.push(d); }
+      }
+      return { grid, ans, opts: R.shuffle(opts) };
+    }
+    function next() {
+      if (r >= ROUNDS) return c.done(total, `${okN}/${ROUNDS} vitraux complétés`);
+      const Q = gen();
+      vt.innerHTML = Q.grid.map((a, i) => i === 8 ? '<span class="vc q">?</span>' : vitralCell(a)).join('');
+      ch.innerHTML = '';
+      let answered = false;
+      const limit = c.tm(P.lim * 1000), t0 = c.now();
+      const stop = c.timer(P.lim, () => { if (answered) return; answered = true; const g2 = $('[data-ok]', ch); if (g2) g2.classList.add('reveal'); r++; c.later(next, 1000); });
+      Q.opts.forEach(o => {
+        const b = document.createElement('button'); b.className = 'ans vit'; b.innerHTML = vitralCell(o);
+        const right = key(o) === key(Q.ans); if (right) b.dataset.ok = '1';
+        b.addEventListener('pointerdown', e => {
+          e.preventDefault(); if (c.over || answered) return; answered = true; stop();
+          if (right) { okN++; total += (100 / ROUNDS) * (0.7 + 0.3 * clamp01(1 - (c.now() - t0) / limit)); c.good(b, true); }
+          else { c.bad(b); const g = $('[data-ok]', ch); if (g) g.classList.add('reveal'); }
+          c.score(okN); r++; c.later(next, right ? 400 : 1100);
+        });
+        ch.appendChild(b);
+      });
+      if (c.practice) c.ok(ch.querySelector('[data-ok]'));
+    }
+    next();
+  }
+};
+
+/* --- Suites de nombres --- */
+const G_SUITES = {
+  id: 'suites', name: 'Les bouées numérotées', cat: 'logic', color: '#B45309', fg: '#fff', icon: '🔢',
+  rule: () => 'Les bouées suivent une règle de nombres. Trouve le nombre qui vient ensuite.',
+  info: () => '8 suites',
+  run(c) {
+    const P = c.L({ F: { lim: 20 }, N: { lim: 18 }, E: { lim: 18 } });
+    const ROUNDS = 8;
+    c.stage.innerHTML = `<div class="buoys" id="bu"></div><p class="plaque small" style="margin:0" id="sx">Quel nombre vient ensuite ?</p><div class="answers c2" id="ch"></div>`;
+    const bu = $('#bu', c.stage), ch = $('#ch', c.stage);
+    let r = 0, total = 0, okN = 0;
+    c.score(0);
+    function gen() {
+      const R = c.rng, L = c.level, lv = r < 2 && L !== 'F' ? (L === 'E' ? 'N' : 'F') : L;
+      const T = { F: ['add', 'sub', 'add2'], N: ['mul2', 'inc', 'alt', 'add', 'sub3'], E: ['fib', 'sq', 'mul2p1', 'alt2', 'inc2', 'mul3'] }[lv];
+      const t = R.pick(T); let s = [];
+      if (t === 'add') { const a = R.int(1, 10), k = R.int(2, 5); for (let i = 0; i < 6; i++) s.push(a + k * i); }
+      else if (t === 'sub') { const k = R.int(2, 4), a = k * 6 + R.int(1, 10); for (let i = 0; i < 6; i++) s.push(a - k * i); }
+      else if (t === 'add2') { const a = R.int(0, 6); for (let i = 0; i < 6; i++) s.push(a + 10 * i); }
+      else if (t === 'mul2') { const a = R.int(1, 4); for (let i = 0; i < 6; i++) s.push(a * 2 ** i); }
+      else if (t === 'inc') { let v = R.int(1, 8); for (let i = 0; i < 6; i++) { s.push(v); v += i + 1; } }
+      else if (t === 'alt') { const a = R.int(1, 9), b = R.int(20, 40), k = R.int(1, 3); for (let i = 0; i < 6; i++) s.push(i % 2 ? b - k * ((i - 1) / 2) : a + k * (i / 2)); }
+      else if (t === 'sub3') { const a = R.int(40, 60); for (let i = 0; i < 6; i++) s.push(a - 3 * i - 0); }
+      else if (t === 'fib') { let a = R.int(1, 3), b = R.int(2, 4); s = [a, b]; while (s.length < 6) s.push(s[s.length - 1] + s[s.length - 2]); }
+      else if (t === 'sq') { const o = R.int(1, 3); for (let i = 0; i < 6; i++) s.push((i + o) ** 2); }
+      else if (t === 'mul2p1') { let v = R.int(1, 3); for (let i = 0; i < 6; i++) { s.push(v); v = v * 2 + 1; } }
+      else if (t === 'alt2') { let v = R.int(2, 6); const a = R.int(3, 6); for (let i = 0; i < 6; i++) { s.push(v); v = i % 2 ? v * 2 : v + a; } }
+      else if (t === 'inc2') { let v = R.int(1, 5); const k = R.int(2, 3); for (let i = 0; i < 6; i++) { s.push(v); v += k * (i + 1); } }
+      else { const a = R.int(1, 3); for (let i = 0; i < 6; i++) s.push(a * 3 ** i); }
+      const ans = s[5], shown = s.slice(0, 5), d = s[4] - s[3];
+      const cand = R.shuffle([ans + 1, ans - 1, ans + 2, ans - 2, s[4] + (s[1] - s[0]), ans + d, ans - d, s[4] * 2, ans + 10]).filter(v => v !== ans && v >= 0);
+      const opts = [ans]; for (const v of cand) { if (opts.length >= 4) break; if (!opts.includes(v)) opts.push(v); }
+      let k = 3; while (opts.length < 4) { if (!opts.includes(ans + k)) opts.push(ans + k); k++; }
+      return { shown, ans, opts: R.shuffle(opts) };
+    }
+    function next() {
+      if (r >= ROUNDS) return c.done(total, `${okN}/${ROUNDS} suites trouvées`);
+      const Q = gen();
+      bu.innerHTML = Q.shown.map(v => `<span class="buoy-n">${v}</span>`).join('') + '<span class="buoy-n q">?</span>';
+      ch.innerHTML = '';
+      let answered = false;
+      const limit = c.tm(P.lim * 1000), t0 = c.now();
+      const stop = c.timer(P.lim, () => { if (answered) return; answered = true; const g2 = $('[data-ok]', ch); if (g2) g2.classList.add('reveal'); r++; c.later(next, 1000); });
+      Q.opts.forEach(v => {
+        const b = document.createElement('button'); b.className = 'ans'; b.textContent = v;
+        const right = v === Q.ans; if (right) b.dataset.ok = '1';
+        b.addEventListener('pointerdown', e => {
+          e.preventDefault(); if (c.over || answered) return; answered = true; stop();
+          if (right) { okN++; total += (100 / ROUNDS) * (0.7 + 0.3 * clamp01(1 - (c.now() - t0) / limit)); c.good(b, true); }
+          else { c.bad(b); const g = $('[data-ok]', ch); if (g) g.classList.add('reveal'); }
+          c.score(okN); r++; c.later(next, right ? 400 : 1100);
+        });
+        ch.appendChild(b);
+      });
+      if (c.practice) c.ok(ch.querySelector('[data-ok]'));
+    }
+    next();
+  }
+};
+
+/* --- Boutique du port : payer le compte juste --- */
+const SHOP = [['🍦', 'une glace'], ['🥐', 'un croissant'], ['🎈', 'un ballon'], ['🧃', 'un jus'], ['🪁', 'un cerf-volant'], ['🍭', 'une sucette'], ['📒', 'un carnet'], ['🧢', 'une casquette'], ['🐚', 'un coquillage'], ['🍩', 'un beignet'], ['🧸', 'une peluche'], ['🕶️', 'des lunettes']];
+const euro = c => (c % 100 ? (c / 100).toFixed(2).replace('.', ',') : String(c / 100)) + ' €';
+const G_BOUTIQUE = {
+  id: 'boutique', name: 'La boutique du port', cat: 'speed', color: '#15803D', fg: '#fff', icon: '🪙',
+  rule: l => 'Un client achète un objet. Touche les pièces et billets pour payer le prix exact.' + (l === 'E' ? ' Bonus si tu utilises le moins de pièces possible.' : ''),
+  info: () => '40 secondes',
+  run(c) {
+    const P = c.L({
+      F: { coins: [500, 200, 100], min: 1, max: 9, step: 100, target: 9 },
+      N: { coins: [200, 100, 50, 20, 10], min: 1, max: 9, step: 10, target: 8 },
+      E: { coins: [1000, 500, 200, 100, 50, 20, 10], min: 2, max: 25, step: 10, target: 7, few: true }
+    });
+    c.stage.innerHTML = `<div class="shop" id="sh"></div><div class="counter" id="ct" aria-live="polite"></div><div class="coins" id="co"></div>`;
+    const sh = $('#sh', c.stage), ct = $('#ct', c.stage), co = $('#co', c.stage);
+    let paid = 0, err = 0, bonus = 0, price = 0, sum = 0, used = 0, busy = false;
+    c.score(0);
+    const minCoins = v => { let n = 0; for (const x of P.coins) { n += Math.floor(v / x); v %= x; } return n; };
+    function next() {
+      const it = c.rng.pick(SHOP);
+      price = c.rng.int(P.min * 100 / P.step, P.max * 100 / P.step) * P.step; sum = 0; used = 0; busy = false;
+      sh.innerHTML = `<span class="shop-item">${it[0]}</span><span class="tag-price">${euro(price)}</span><span class="small">pour ${it[1]}</span>`;
+      draw();
+    }
+    function draw() {
+      ct.innerHTML = `Comptoir : <b>${euro(sum)}</b>`;
+      const rest = price - sum;
+      const nxt = P.coins.find(x => x <= rest);
+      c.ok(nxt ? co.querySelector(`[data-v="${nxt}"]`) : null);
+    }
+    P.coins.forEach(v => {
+      const b = document.createElement('button'); b.className = 'coin' + (v >= 500 ? ' bill' : v >= 100 ? ' gold' : ''); b.dataset.v = v; b.textContent = v >= 100 ? (v / 100) + ' €' : v + ' c';
+      b.addEventListener('pointerdown', e => {
+        e.preventDefault(); if (c.over || busy) return;
+        sum += v; used++; c.beep(600); fx(b, 'ok-fx');
+        if (sum === price) {
+          busy = true; paid++; let b2 = '';
+          if (P.few && used === minCoins(price)) { bonus++; b2 = ' Bonus : le moins de pièces !'; }
+          c.good(ct, true); c.score(paid + bonus); ct.innerHTML = `✓ Compte juste !${b2}`; c.later(next, 600);
+        } else if (sum > price) {
+          busy = true; err++; c.bad(ct); ct.innerHTML = `Trop : ${euro(sum)} au lieu de ${euro(price)}. On recommence.`;
+          c.later(() => { sum = 0; used = 0; busy = false; draw(); }, 900);
+        } else draw();
+      });
+      co.appendChild(b);
+    });
+    next();
+    c.timer(40, () => c.done(100 * clamp01((paid + bonus * 0.5 - 0.5 * err) / P.target), `${paid} achat${paid > 1 ? 's' : ''} payé${paid > 1 ? 's' : ''}${bonus ? ` · ${bonus} bonus` : ''} · ${plural(err, 'erreur')}`));
+  }
+};
+
+const GAMES = [G_LANTERNE, G_BATEAUX, G_VENT, G_CONSTEL, G_GUE, G_LUCIOLES, G_PHARES, G_COLLIER, G_RECIF, G_COURANTS, G_CABINES, G_MOUETTES, G_CRABES, G_BULLES, G_MYSTERE, G_VITRAUX, G_SUITES, G_BOUTIQUE];
