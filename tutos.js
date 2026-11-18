@@ -160,6 +160,31 @@ const TUTOS = {
     legend: () => 'Trois carrés bleus : bleu comme le panier 1, carré comme le 2, trois comme le 3. Seuls ✓ et ✗ te disent quelle règle est la bonne.',
     oops: '✗ : ta règle ne marche pas. Essaie de trier autrement (couleur, forme ou nombre).',
     goal: 4
+  },
+  crabes: {
+    but: 'Attrape les crabes avant qu’ils filent',
+    rules: {
+      base: ['Des crabes sortent de leurs trous dans le sable.', 'Touche-les vite, avant qu’ils redescendent.', 'Toucher un trou vide ne coûte rien.'],
+      N: ['Touche seulement la couleur du drapeau.', 'Le drapeau change parfois : jette-lui un œil.'],
+      E: ['Touche seulement la couleur du drapeau.', 'Le drapeau change parfois : jette-lui un œil.', 'Plusieurs crabes peuvent sortir en même temps.']
+    },
+    ex: l => l === 'F' ? exTile(`<span class="ex-crab">${crabSVG(0)}</span>`, 'Touche-le vite', true) + exTile('<span class="ex-hole"></span>', 'Trou vide : rien', null)
+      : `<div class="ex-target">Drapeau : ${flagHTML(0)}</div>` + exTile(`<span class="ex-crab">${crabSVG(0)}</span>`, 'Rouge : touche', true) + exTile(`<span class="ex-crab">${crabSVG(1)}</span>`, 'Bleu : laisse', false),
+    legend: l => l === 'F' ? 'Un crabe sort → touche-le avant qu’il se cache. Plus tu es rapide, plus tu en attrapes.' : 'Le drapeau dit « rouges » → touche les crabes rouges (avec le rond blanc), laisse les autres.',
+    oops: 'Regarde le drapeau : touche seulement les crabes de sa couleur.',
+    goal: 4
+  },
+  bulles: {
+    but: 'Trouve les bulles qui font le compte',
+    rules: {
+      base: ['L’ardoise montre le total à atteindre.', 'Touche 2 bulles dont la somme fait ce total.', 'Une bulle touchée par erreur ? Touche-la encore pour l’enlever.'],
+      E: ['Ici il faut 3 bulles (les deux premières fois, 2 seulement).']
+    },
+    ex: l => l === 'E' ? `<div class="ex-op">? + ? + ? = 15</div><div class="ex-stones">${['4', '9', '6', '5', '8'].map(v => `<span class="ex-bub ${['4', '6', '5'].includes(v) ? 'good' : ''}">${v}</span>`).join('')}</div>`
+      : `<div class="ex-op">? + ? = 12</div><div class="ex-stones">${['3', '5', '9', '7', '2'].map(v => `<span class="ex-bub ${v === '5' || v === '7' ? 'good' : ''}">${v}</span>`).join('')}</div>`,
+    legend: l => l === 'E' ? '4 + 6 + 5 = 15 → touche ces trois bulles, dans n’importe quel ordre.' : '5 + 7 = 12 → touche la bulle 5 puis la bulle 7 (l’ordre n’a pas d’importance). Un seul couple marche à chaque fois.',
+    oops: 'Le total n’est pas bon : additionne les bulles choisies et compare à l’ardoise.',
+    goal: 3
   }
 };
 

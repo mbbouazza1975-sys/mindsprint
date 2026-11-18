@@ -8,7 +8,7 @@ const LEVELS = { F: { name: 'Échauffement', sub: 'Pour démarrer tranquille, d�
 const PLAYER_STYLE = [
   { color: '#F4B400', shape: 0 }, { color: '#2EC4B6', shape: 2 }, { color: '#FF8FB1', shape: 3 }, { color: '#1F5FE0', shape: 1 }
 ];
-const FULL_ORDER = [0, 6, 1, 7, 2, 8, 3, 9, 4, 10, 5, 11];
+const FULL_ORDER = [0, 6, 12, 13, 1, 7, 2, 8, 3, 9, 4, 10, 5, 11];
 const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 
 /* ---------- Stockage (navigateur de l'appareil uniquement) ---------- */
@@ -122,19 +122,19 @@ function home() {
   const tot = stars.reduce((a, b) => a + b, 0);
   const bests = ['F', 'N', 'E'].map(l => [l, store.get('best:' + l, null)]).filter(([, v]) => v != null);
   const hello = first ? 'Salut ! Je suis Mèche. Les phares de l’archipel t’attendent : on en allume combien ce soir ?'
-    : tot ? `Re-bonjour ! Ton archipel brille de ${tot} étoile${tot > 1 ? 's' : ''} sur 36. On continue ?` : 'Re-bonjour ! Prêt pour une nouvelle partie ?';
+    : tot ? `Re-bonjour ! Ton archipel brille de ${tot} étoile${tot > 1 ? 's' : ''} sur ${GAMES.length * 3}. On continue ?` : 'Re-bonjour ! Prêt pour une nouvelle partie ?';
   app.innerHTML = `<div class="screen home">
    <div class="home-sky"><div class="beam"></div><div class="home-sea"><svg viewBox="0 0 360 200" preserveAspectRatio="none"><path d="M0 40Q60 20 120 36T240 30T360 38V200H0Z" fill="#1B6F8A"/><g class="sc-wave"><path d="M-60 90q30-14 60 0t60 0 60 0 60 0 60 0 60 0 60 0 60 0V200H-60Z" fill="#155A72"/></g><g class="sc-wave sc-w2"><path d="M-60 140q30-14 60 0t60 0 60 0 60 0 60 0 60 0 60 0 60 0V200H-60Z" fill="#0F4A60"/></g><path d="M230 40q30-26 70-6l10 6z" fill="#0E1B42"/><rect x="254" y="-18" width="14" height="44" fill="#F7FBFA" stroke="#0E1B42" stroke-width="3"/><rect x="254" y="-4" width="14" height="8" fill="#FF7A6B"/><circle cx="261" cy="-22" r="6" fill="#FFD27A"/></svg></div></div>
-   <div class="topbar between"><div class="wordmark">Mind<b>Sprint</b></div><button class="iconbtn" id="set" aria-label="Réglages">⚙</button></div>
+   <div class="topbar between"><div><div class="wordmark">Mind<b>Sprint</b></div><div class="slogan">Muscle tes méninges en t’amusant !</div></div><button class="iconbtn" id="set" aria-label="Réglages">⚙</button></div>
    <div class="hello">${MECHE}<div class="bubble">${hello}</div></div>
-   <button class="mode-solo" id="solo"><span><span class="t">Jouer seul</span><br>Les 12 épreuves, environ 10 min</span><span class="ico">🧭</span></button>
+   <button class="mode-solo" id="solo"><span><span class="t">Jouer seul</span><br>Les 14 épreuves, environ 12 min</span><span class="ico">🧭</span></button>
    <button class="mode-fam" id="fam"><span style="font-size:1.8rem">👨‍👩‍👧‍👦</span><span>En famille<br><span class="small" style="font-weight:500">2 à 4 joueurs, un seul téléphone</span></span></button>
    <button class="mode-fam" id="train" style="background:var(--foam)"><span style="font-size:1.8rem">🏝️</span><span>Entraînement libre<br><span class="small" style="font-weight:500">Choisis une île, bats ton record</span></span></button>
    ${deferredInstall ? `<button class="mode-fam" id="inst" style="background:var(--foam)"><span style="font-size:1.8rem">📲</span><span>Installer l’app<br><span class="small" style="font-weight:500">Sur l’écran d’accueil, même sans connexion</span></span></button>` : ''}
-   <div class="archi" aria-label="Étoiles gagnées : ${tot} sur 36">${stars.map(n => `<i class="s${n}"></i>`).join('')}</div>
-   <p class="small" style="color:#C9D6F2;margin:0">Ton archipel : ${tot} étoile${tot > 1 ? 's' : ''} sur 36${bests.length ? ' · Meilleur test : ' + bests.map(([l, v]) => `${LEVELS[l].name} ${v}/100`).join(', ') : ''}</p>
+   <div class="archi" aria-label="Étoiles gagnées : ${tot} sur ${GAMES.length * 3}">${stars.map(n => `<i class="s${n}"></i>`).join('')}</div>
+   <p class="small" style="color:#C9D6F2;margin:0">Ton archipel : ${tot} étoile${tot > 1 ? 's' : ''} sur ${GAMES.length * 3}${bests.length ? ' · Meilleur test : ' + bests.map(([l, v]) => `${LEVELS[l].name} ${v}/100`).join(', ') : ''}</p>
    <div class="spacer"></div>
-   <p class="small" style="color:#C9D6F2;text-align:center;margin-top:18px">Un jeu pour s’amuser. Il ne mesure ni n’améliore l’intelligence.</p>
+   <p class="small" style="color:#C9D6F2;text-align:center;margin-top:18px">Un jeu pour s’amuser en famille, pas un test scientifique.</p>
   </div>`;
   store.set('seen', true);
   on('#set', 'click', settingsSheet);
@@ -454,7 +454,7 @@ function familySetup(prevNames) {
       <h3 style="margin-top:16px">Format</h3>
       <div class="chips" id="fm" style="margin-top:8px">
         <button class="chip ${format === 'quick' ? 'on' : ''}" data-f="quick">Partie rapide · 4 épreuves</button>
-        <button class="chip ${format === 'full' ? 'on' : ''}" data-f="full">Test complet · 12</button>
+        <button class="chip ${format === 'full' ? 'on' : ''}" data-f="full">Test complet · 14</button>
       </div>
       <h3 style="margin-top:16px">Niveau</h3>
       <div class="chips" id="lv" style="margin-top:8px">${Object.entries(LEVELS).map(([k, v]) => `<button class="chip ${k === lvl ? 'on' : ''}" data-l="${k}">${v.name}</button>`).join('')}</div>

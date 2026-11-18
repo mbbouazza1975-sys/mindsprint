@@ -348,3 +348,32 @@ body{background:var(--night)}
 .step .blk{color:var(--ink)}
 .step .blk.first{color:#13224A}
 .ex-c b.wh{font-size:.95rem;background:#F7FBFA;border-radius:50%;line-height:1;z-index:2}
+/* ===== v3 : slogan, crabes, bulles ===== */
+.slogan{font:700 .95rem var(--font-t);color:var(--amber);margin-top:2px}
+.crabbar{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+.crabflag{display:inline-flex;align-items:center;gap:6px;font-weight:800}
+.cf-dot{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;border:3px solid #13224A}
+.beach{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-content:center;min-height:52vh;padding:8px}
+.hole{position:relative;aspect-ratio:1.15;border:0;padding:0;cursor:pointer;background:radial-gradient(ellipse 50% 32% at 50% 72%,#8A5A3B 0 62%,#C99E5E 64% 72%,transparent 74%);overflow:hidden;border-radius:18px}
+.hole .crabw{position:absolute;left:8%;right:8%;bottom:18%;height:70%;transform:translateY(80%);opacity:0;transition:transform .14s var(--e-out),opacity .1s}
+.hole.up .crabw{transform:none;opacity:1}
+.hole.hit .crabw{transform:translateY(30%) scale(.9) rotate(-12deg);opacity:.5}
+.crab{width:100%;height:100%;filter:drop-shadow(0 4px 0 rgba(19,34,74,.35))}
+.slate{align-self:center;background:#2B3A2E;color:#F7FBFA;border:4px solid #8A5A3B;border-radius:16px;padding:10px 18px;box-shadow:0 6px 0 #060D24;font:800 1.8rem var(--font-d)}
+.slate.wrong{background:#7A1F33}
+.sl-sum{display:flex;align-items:center;gap:8px}
+.sl-sum b{min-width:44px;text-align:center;border-bottom:3px dashed #C9D6F2}
+.sl-sum i{font-style:normal;color:#FFD27A}
+.sl-sum strong{color:#FFD27A;font-size:2.2rem}
+.bubbles{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:18px;align-content:center;padding:10px}
+.bubble-n{aspect-ratio:1;border-radius:50%;border:3px solid #13224A;cursor:pointer;font:800 1.9rem var(--font-d);color:#13224A;
+  background:radial-gradient(circle at 32% 28%,#fff 0 14%,#DDF6F7 30%,#9FE0E4 70%,#6CC9CF);box-shadow:0 5px 0 #060D24;animation:float 3.2s ease-in-out infinite}
+.bubble-n.sel{background:radial-gradient(circle at 32% 28%,#fff 0 12%,#FFE2A6 32%,#FFB23E 80%);transform:scale(1.06)}
+.bubble-n.pop{animation:popb .35s forwards}
+@keyframes float{50%{transform:translateY(-8px)}}
+@keyframes popb{to{transform:scale(1.4);opacity:0}}
+.ex-crab{width:70px;height:56px;display:block}
+.ex-hole{width:64px;height:40px;border-radius:50%;background:radial-gradient(ellipse at 50% 60%,#8A5A3B 0 60%,#C99E5E 62%);display:block}
+.ex-bub{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;border:2px solid #13224A;font:800 1.1rem var(--font-d);background:radial-gradient(circle at 32% 28%,#fff 0 14%,#9FE0E4 70%)}
+.ex-bub.good{background:radial-gradient(circle at 32% 28%,#fff 0 12%,#FFB23E 80%);outline:3px solid #0F6E4F}
+@media (prefers-reduced-motion:reduce){.bubble-n{animation:none}}

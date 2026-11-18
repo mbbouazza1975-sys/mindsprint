@@ -1,6 +1,6 @@
 'use strict';
 /* =========================================================
-   MindSprint — les 12 épreuves (6 rapidité, 6 logique)
+   MindSprint — les 14 épreuves (7 rapidité, 7 logique)
    Chaque épreuve : run(c) où c = contexte fourni par app.js
    ========================================================= */
 
@@ -906,4 +906,131 @@ const G_MOUETTES = {
   }
 };
 
-const GAMES = [G_LANTERNE, G_BATEAUX, G_VENT, G_CONSTEL, G_GUE, G_LUCIOLES, G_PHARES, G_COLLIER, G_RECIF, G_COURANTS, G_CABINES, G_MOUETTES];
+
+/* =========================================================
+   NOUVELLES ÉPREUVES (v3)
+   ========================================================= */
+const CRAB_COLS = [{ n: 'rouges', h: '#D93A1E' }, { n: 'bleus', h: '#1F5FE0' }, { n: 'verts', h: '#0B7A42' }];
+const CRAB_SYM = ['<circle cx="50" cy="50" r="7" fill="#fff"/>', '<polygon points="50,41 59,57 41,57" fill="#fff"/>', '<rect x="43" y="43" width="14" height="14" fill="#fff"/>'];
+function crabSVG(k) {
+  const c = CRAB_COLS[k].h;
+  return `<svg viewBox="0 0 100 80" class="crab" role="img" aria-label="crabe ${CRAB_COLS[k].n.slice(0, -1)}">
+<g stroke="#13224A" stroke-width="4" stroke-linecap="round" fill="none"><path d="M36 32 30 16M64 32 70 16"/><path d="M22 52 8 62M24 60 12 72M78 52 92 62M76 60 88 72"/></g>
+<circle cx="30" cy="13" r="7" fill="#fff" stroke="#13224A" stroke-width="3"/><circle cx="70" cy="13" r="7" fill="#fff" stroke="#13224A" stroke-width="3"/><circle cx="31" cy="14" r="3" fill="#13224A"/><circle cx="71" cy="14" r="3" fill="#13224A"/>
+<path d="M16 34q-14-6-9-20 11 2 15 13zM84 34q14-6 9-20-11 2-15 13z" fill="${c}" stroke="#13224A" stroke-width="3"/>
+<ellipse cx="50" cy="50" rx="31" ry="21" fill="${c}" stroke="#13224A" stroke-width="4"/>${CRAB_SYM[k]}</svg>`;
+}
+const flagHTML = k => `<span class="crabflag"><span class="cf-dot" style="background:${CRAB_COLS[k].h}"><svg viewBox="0 0 100 100" width="22" height="22">${CRAB_SYM[k].replace(/50/g, '50')}</svg></span>${CRAB_COLS[k].n}</span>`;
+
+const G_CRABES = {
+  id: 'crabes', name: 'Les crabes farceurs', cat: 'speed', color: '#C2410C', fg: '#fff', icon: '🦀',
+  rule: l => l === 'F' ? 'Des crabes sortent de leurs trous. Touche-les vite avant qu’ils redescendent.'
+    : 'Des crabes sortent de leurs trous. Touche seulement ceux de la couleur du drapeau, et vite !',
+  info: () => '30 secondes',
+  run(c) {
+    const P = c.L({
+      F: { show: 850, gap: 900, max: 1, cols: 1, flag: 0, pt: 1 },
+      N: { show: 780, gap: 700, max: 2, cols: 2, flag: 8000, pt: .6 },
+      E: { show: 690, gap: 560, max: 3, cols: 3, flag: 6000, pt: .55 }
+    });
+    c.stage.innerHTML = `<div class="crabbar plaque" id="fl" aria-live="polite"></div><div class="beach" id="ho">${Array.from({ length: 9 }, (_, i) => `<button class="hole" data-i="${i}" aria-label="Trou ${i + 1}"><span class="crabw"></span></button>`).join('')}</div>`;
+    const holes = $$('.hole', c.stage), fl = $('#fl', c.stage);
+    const occ = Array(9).fill(null);
+    let want = 0, hits = 0, wrong = 0, shown = 0, missed = 0;
+    c.score(0);
+    function setFlag(first) {
+      if (P.cols === 1) { fl.innerHTML = 'Touche tous les crabes !'; return; }
+      let k; do { k = c.rng.int(0, P.cols - 1); } while (!first && k === want); want = k;
+      fl.innerHTML = `Touche les crabes ${flagHTML(want)}`; if (!first) { fx(fl, 'ok-fx'); c.beep(520); }
+    }
+    setFlag(true);
+    if (P.flag) (function loop() { c.later(() => { if (c.over) return; setFlag(false); refreshOk(); loop(); }, c.tm(P.flag)); })();
+    function refreshOk() { const i = occ.findIndex(o => o && !o.tapped && o.k === want); c.ok(i >= 0 ? holes[i] : null); }
+    function spawn() {
+      if (c.over) return;
+      const ramp = c.now() < 6000 ? 1.3 : 1;
+      if (occ.filter(Boolean).length < P.max) {
+        const free = occ.map((o, i) => o ? -1 : i).filter(i => i >= 0);
+        const i = c.rng.pick(free);
+        let k = want;
+        if (P.cols > 1 && !c.rng.chance(P.pt)) { do { k = c.rng.int(0, P.cols - 1); } while (k === want); }
+        const me = { k, tapped: false }; occ[i] = me;
+        if (k === want) shown++;
+        const w = holes[i].firstElementChild; w.innerHTML = crabSVG(k); holes[i].classList.add('up');
+        refreshOk();
+        c.later(() => {
+          if (occ[i] !== me) return;
+          occ[i] = null; holes[i].classList.remove('up', 'hit');
+          if (!me.tapped && me.k === want) missed++;
+          refreshOk();
+        }, c.tm(P.show * ramp));
+      }
+      c.later(spawn, c.tm(P.gap * ramp) + c.rng.int(-120, 120));
+    }
+    holes.forEach((h, i) => h.addEventListener('pointerdown', e => {
+      e.preventDefault(); if (c.over) return;
+      const o = occ[i]; if (!o || o.tapped) return;
+      o.tapped = true;
+      if (o.k === want) { hits++; h.classList.add('hit'); c.good(h, false); c.score(hits); }
+      else { wrong++; c.bad(h); }
+      refreshOk();
+    }));
+    spawn();
+    c.timer(30, () => c.done(100 * clamp01((hits - 0.5 * wrong) / Math.max(1, shown)), `${hits}/${shown} crabe${shown > 1 ? 's' : ''} attrapé${hits > 1 ? 's' : ''}${wrong ? ` · ${plural(wrong, 'erreur')} de couleur` : ''}`));
+  }
+};
+
+const G_BULLES = {
+  id: 'bulles', name: 'Les bulles du plongeur', cat: 'logic', color: '#0E7490', fg: '#fff', icon: '🤿',
+  rule: l => l === 'E' ? 'L’ardoise du plongeur montre un total. Touche les 3 bulles dont la somme fait ce total.'
+    : 'L’ardoise du plongeur montre un total. Touche les 2 bulles dont la somme fait ce total.',
+  info: () => '40 secondes',
+  run(c) {
+    const P = c.L({ F: { k: 2, max: 10, n: 5, target: 11 }, N: { k: 2, max: 25, n: 6, target: 12 }, E: { k: 3, max: 20, n: 6, target: 8 } });
+    c.stage.innerHTML = `<div class="slate" id="sl" aria-live="polite"></div><div class="bubbles" id="bb"></div><div class="streak" id="hint"></div>`;
+    const sl = $('#sl', c.stage), bb = $('#bb', c.stage), hint = $('#hint', c.stage);
+    let good = 0, err = 0, np = 0, Q = null, sel = [], busy = false;
+    c.score(0);
+    function combos(arr, k, start = 0, acc = [], out = []) { if (acc.length === k) { out.push(acc.slice()); return out; } for (let i = start; i < arr.length; i++) { acc.push(i); combos(arr, k, i + 1, acc, out); acc.pop(); } return out; }
+    function gen() {
+      const k = (c.level === 'E' && np < 2) ? 2 : P.k;
+      for (let t = 0; t < 500; t++) {
+        const nums = Array.from({ length: P.n }, () => c.rng.int(1, P.max));
+        const sol = c.rng.shuffle([...Array(P.n).keys()]).slice(0, k);
+        const T = sol.reduce((s, i) => s + nums[i], 0);
+        const all = combos(nums, k).filter(cb => cb.reduce((s, i) => s + nums[i], 0) === T);
+        if (all.length === 1) return { nums, sol, T, k };
+      }
+      return { nums: [2, 3, 4, 5, 6, 7].slice(0, P.n), sol: [0, 1], T: 5, k: 2 };
+    }
+    function drawSlate() { sl.innerHTML = `<span class="sl-sum">${Array.from({ length: Q.k }, (_, j) => `<b>${sel[j] !== undefined ? Q.nums[sel[j]] : '?'}</b>`).join('<i>+</i>')}<i>=</i><strong>${Q.T}</strong></span>`; }
+    function markOk() { const nxt = Q.sol.find(i => !sel.includes(i)); c.ok(nxt !== undefined && sel.every(i => Q.sol.includes(i)) ? bb.children[nxt] : null); }
+    function next() {
+      Q = gen(); np++; sel = []; busy = false; hint.textContent = Q.k === 3 ? 'Trois bulles cette fois !' : '';
+      bb.innerHTML = '';
+      Q.nums.forEach((v, i) => {
+        const b = document.createElement('button'); b.className = 'bubble-n'; b.textContent = v;
+        b.style.animationDelay = (-c.rng() * 3).toFixed(2) + 's';
+        b.addEventListener('pointerdown', e => {
+          e.preventDefault(); if (c.over || busy) return;
+          const at = sel.indexOf(i);
+          if (at >= 0) { sel.splice(at, 1); b.classList.remove('sel'); }
+          else { sel.push(i); b.classList.add('sel'); c.beep(700); }
+          drawSlate(); markOk();
+          if (sel.length === Q.k) {
+            busy = true;
+            const sum = sel.reduce((s, j) => s + Q.nums[j], 0);
+            if (sum === Q.T) { good++; c.score(good); sel.forEach(j => bb.children[j].classList.add('pop')); c.good(sl, true); c.later(next, 380); }
+            else { err++; c.bad(bb); sl.classList.add('wrong'); hint.textContent = `${sel.map(j => Q.nums[j]).join(' + ')} = ${sum}, pas ${Q.T}.`; c.later(() => { sl.classList.remove('wrong'); sel = []; $$('.bubble-n', bb).forEach(x => x.classList.remove('sel')); busy = false; drawSlate(); markOk(); }, 700); }
+          }
+        });
+        bb.appendChild(b);
+      });
+      drawSlate(); markOk();
+    }
+    next();
+    c.timer(40, () => c.done(100 * clamp01((good - 0.5 * err) / P.target), `${good} ${good > 1 ? 'totaux' : 'total'} trouvé${good > 1 ? 's' : ''} · ${plural(err, 'erreur')}`));
+  }
+};
+
+const GAMES = [G_LANTERNE, G_BATEAUX, G_VENT, G_CONSTEL, G_GUE, G_LUCIOLES, G_PHARES, G_COLLIER, G_RECIF, G_COURANTS, G_CABINES, G_MOUETTES, G_CRABES, G_BULLES];
