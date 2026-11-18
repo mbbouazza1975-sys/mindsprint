@@ -1,6 +1,6 @@
 /* MindSprint — service worker : fonctionne hors connexion */
-const CACHE = 'mindsprint-v1';
-const CORE = ['./', 'index.html', 'styles.css', 'games.js', 'app.js', 'manifest.webmanifest',
+const CACHE = 'mindsprint-v2';
+const CORE = ['./', 'index.html', 'styles.css', 'games.js', 'app.js', 'design.css', 'scenes.js', 'tutos.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));

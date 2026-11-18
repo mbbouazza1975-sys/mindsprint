@@ -17,7 +17,7 @@ const store = {
   set(k, v) { try { localStorage.setItem('pige:' + k, JSON.stringify(v)); } catch (e) { } },
   clear() { try { Object.keys(localStorage).filter(k => k.startsWith('pige:')).forEach(k => localStorage.removeItem(k)); } catch (e) { } }
 };
-const settings = Object.assign({ sound: false, haptic: true, moreTime: false, theme: 'auto', level: 'F' }, store.get('settings', {}));
+const settings = Object.assign({ sound: true, haptic: true, moreTime: false, theme: 'auto', level: 'F' }, store.get('settings', {}));
 function saveSettings() { store.set('settings', settings); applyTheme(); }
 function applyTheme() {
   document.documentElement.dataset.theme = settings.theme;
@@ -25,6 +25,7 @@ function applyTheme() {
   const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? '#14133A' : '#3B3FE0';
 }
 applyTheme();
+['F','N','E'].forEach(l => { const v = store.get('best:' + l, null); if (v != null && v > 100) store.set('best:' + l, Math.round(v / 10)); });
 
 /* ---------- Son & vibrations ---------- */
 let AC = null;
@@ -113,31 +114,28 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferr
    ÉCRANS
    ========================================================= */
 
+function bestOf(id) { return Math.max(-1, ...['F', 'N', 'E'].map(l => store.get(recKey(id, l), -1))); }
 function home() {
   Clock.reset(); S = null;
   const first = !store.get('seen', false);
+  const stars = GAMES.map(g => { const b = bestOf(g.id); return b < 0 ? 0 : starsOf(b); });
+  const tot = stars.reduce((a, b) => a + b, 0);
   const bests = ['F', 'N', 'E'].map(l => [l, store.get('best:' + l, null)]).filter(([, v]) => v != null);
-  screen(`
-    <div class="topbar between">
-      <div class="logo">${LOGO}<span>MindSprint</span></div>
-      <button class="iconbtn" id="set" aria-label="Réglages">⚙</button>
-    </div>
-    <h1 style="margin-top:18px">${first ? 'Salut ! On joue ?' : 'On s’y remet ?'}</h1>
-    <p class="muted">${first ? 'Douze petites épreuves de vitesse et de logique. Une demi-minute à une minute chacune.' : 'Rapidité, logique, ou les deux. À toi de voir.'}</p>
-    <div class="tokens2">
-      <button class="token" id="solo" style="background:var(--brand);color:#fff">
-        <span class="big">🎯</span><span><span class="t">Seul</span><br><span class="s">Le test complet, 12 épreuves</span></span>
-      </button>
-      <button class="token" id="fam" style="background:var(--accent);color:#1E1B4B;animation-delay:30ms">
-        <span class="big">👨‍👩‍👧‍👦</span><span><span class="t">En famille</span><br><span class="s">2 à 4 joueurs, un seul téléphone</span></span>
-      </button>
-    </div>
-    <button class="listrow" id="train"><span style="font-size:1.6rem">🧪</span><span><b>Entraînement libre</b><br><span class="small muted">Choisis une épreuve et bats ton record</span></span><span class="chev">›</span></button>
-    ${deferredInstall ? `<button class="listrow" id="inst"><span style="font-size:1.6rem">📲</span><span><b>Installer l’app</b><br><span class="small muted">Sur l’écran d’accueil, même sans connexion</span></span><span class="chev">›</span></button>` : ''}
-    ${bests.length ? `<div class="statline">${bests.map(([l, v]) => `<span class="pill">🏆 ${LEVELS[l].name} : ${v}/1000</span>`).join('')}</div>` : ''}
-    <div class="spacer"></div>
-    <p class="small muted" style="text-align:center;margin-top:24px">Un jeu pour s’amuser. Il ne mesure ni n’améliore l’intelligence.</p>
-  `);
+  const hello = first ? 'Salut ! Je suis Mèche. Les phares de l’archipel t’attendent : on en allume combien ce soir ?'
+    : tot ? `Re-bonjour ! Ton archipel brille de ${tot} étoile${tot > 1 ? 's' : ''} sur 36. On continue ?` : 'Re-bonjour ! Prêt pour une nouvelle partie ?';
+  app.innerHTML = `<div class="screen home">
+   <div class="home-sky"><div class="beam"></div><div class="home-sea"><svg viewBox="0 0 360 200" preserveAspectRatio="none"><path d="M0 40Q60 20 120 36T240 30T360 38V200H0Z" fill="#1B6F8A"/><g class="sc-wave"><path d="M-60 90q30-14 60 0t60 0 60 0 60 0 60 0 60 0 60 0 60 0V200H-60Z" fill="#155A72"/></g><g class="sc-wave sc-w2"><path d="M-60 140q30-14 60 0t60 0 60 0 60 0 60 0 60 0 60 0 60 0V200H-60Z" fill="#0F4A60"/></g><path d="M230 40q30-26 70-6l10 6z" fill="#0E1B42"/><rect x="254" y="-18" width="14" height="44" fill="#F7FBFA" stroke="#0E1B42" stroke-width="3"/><rect x="254" y="-4" width="14" height="8" fill="#FF7A6B"/><circle cx="261" cy="-22" r="6" fill="#FFD27A"/></svg></div></div>
+   <div class="topbar between"><div class="wordmark">Mind<b>Sprint</b></div><button class="iconbtn" id="set" aria-label="Réglages">⚙</button></div>
+   <div class="hello">${MECHE}<div class="bubble">${hello}</div></div>
+   <button class="mode-solo" id="solo"><span><span class="t">Jouer seul</span><br>Les 12 épreuves, environ 10 min</span><span class="ico">🧭</span></button>
+   <button class="mode-fam" id="fam"><span style="font-size:1.8rem">👨‍👩‍👧‍👦</span><span>En famille<br><span class="small" style="font-weight:500">2 à 4 joueurs, un seul téléphone</span></span></button>
+   <button class="mode-fam" id="train" style="background:var(--foam)"><span style="font-size:1.8rem">🏝️</span><span>Entraînement libre<br><span class="small" style="font-weight:500">Choisis une île, bats ton record</span></span></button>
+   ${deferredInstall ? `<button class="mode-fam" id="inst" style="background:var(--foam)"><span style="font-size:1.8rem">📲</span><span>Installer l’app<br><span class="small" style="font-weight:500">Sur l’écran d’accueil, même sans connexion</span></span></button>` : ''}
+   <div class="archi" aria-label="Étoiles gagnées : ${tot} sur 36">${stars.map(n => `<i class="s${n}"></i>`).join('')}</div>
+   <p class="small" style="color:#C9D6F2;margin:0">Ton archipel : ${tot} étoile${tot > 1 ? 's' : ''} sur 36${bests.length ? ' · Meilleur test : ' + bests.map(([l, v]) => `${LEVELS[l].name} ${v}/100`).join(', ') : ''}</p>
+   <div class="spacer"></div>
+   <p class="small" style="color:#C9D6F2;text-align:center;margin-top:18px">Un jeu pour s’amuser. Il ne mesure ni n’améliore l’intelligence.</p>
+  </div>`;
   store.set('seen', true);
   on('#set', 'click', settingsSheet);
   on('#solo', 'click', () => levelSheet(level => {
@@ -148,7 +146,6 @@ function home() {
   on('#train', 'click', () => trainGrid());
   on('#inst', 'click', async () => { if (!deferredInstall) return; deferredInstall.prompt(); try { await deferredInstall.userChoice; } catch (e) { } deferredInstall = null; home(); });
 }
-
 function levelSheet(go) {
   let sel = settings.level;
   sheet(`
@@ -193,19 +190,17 @@ function trainGrid(filter = 'all') {
   Clock.reset(); S = null;
   const lvl = settings.level;
   const list = GAMES.filter(g => filter === 'all' || g.cat === filter);
-  screen(`
-    <div class="topbar"><button class="iconbtn" id="back" aria-label="Retour">←</button><h2 style="flex:1">Entraînement</h2></div>
-    <div class="chips" id="lv" style="margin-top:6px">${Object.entries(LEVELS).map(([k, v]) => `<button class="chip ${k === lvl ? 'on' : ''}" data-l="${k}">${v.name}</button>`).join('')}</div>
+  app.innerHTML = `<div class="screen home">${scene('phares')}
+    <div class="topbar"><button class="iconbtn" id="back" aria-label="Retour">←</button><span class="plaque" style="margin-left:4px">Entraînement</span></div>
+    <div class="chips" id="lv" style="margin-top:10px">${Object.entries(LEVELS).map(([k, v]) => `<button class="chip ${k === lvl ? 'on' : ''}" data-l="${k}">${v.name}</button>`).join('')}</div>
     <div class="chips" id="ft" style="margin-top:8px">${[['all', 'Toutes'], ['speed', '⚡ Rapidité'], ['logic', '⚙ Logique']].map(([k, l]) => `<button class="chip ${k === filter ? 'on' : ''}" data-f="${k}">${l}</button>`).join('')}</div>
     <div class="ggrid">${list.map((g, i) => {
-      const stars = ['F', 'N', 'E'].map(l => { const r = store.get(recKey(g.id, l), null); return r != null && r >= 70 ? '★' : '☆'; }).join('');
-      const rec = store.get(recKey(g.id, lvl), null);
-      return `<button class="gtok" data-id="${g.id}" style="background:${g.color};color:${g.fg};animation-delay:${i * 30}ms" aria-label="${g.name}, record ${rec ?? 'aucun'}">
+      const rec = store.get(recKey(g.id, lvl), null), n = rec == null ? 0 : starsOf(rec);
+      return `<button class="gtok" data-id="${g.id}" style="background:${g.color};color:${g.fg};animation-delay:${i * 30}ms" aria-label="${g.name}, ${n} étoile${n > 1 ? 's' : ''}, record ${rec ?? 'aucun'}">
         <span class="catdot ${g.cat === 'speed' ? 'cat-speed' : 'cat-logic'}" aria-hidden="true">${g.cat === 'speed' ? '⚡' : '⚙'}</span>
-        <span class="ic">${g.icon}</span><span class="nm">${g.name}</span><span class="stars" title="Étoile : 70+ par niveau">${stars}</span></button>`;
+        <span class="ic">${g.icon}</span><span class="nm">${g.name}</span><span class="stars">${'★'.repeat(n)}${'☆'.repeat(3 - n)}</span></button>`;
     }).join('')}</div>
-    <p class="small muted" style="margin-top:14px">Une étoile par niveau quand tu dépasses 70/100.</p>
-  `);
+    <p class="plaque small" style="margin-top:14px">Étoiles : 40, 65 et 85 points au niveau choisi.</p></div>`;
   on('#back', 'click', home);
   $$('#lv .chip').forEach(b => b.addEventListener('click', () => { settings.level = b.dataset.l; saveSettings(); trainGrid(filter); }));
   $$('#ft .chip').forEach(b => b.addEventListener('click', () => trainGrid(b.dataset.f)));
@@ -215,42 +210,67 @@ function trainGrid(filter = 'all') {
     intro();
   }));
 }
-
 function currentPlayer() { return S.mode === 'family' ? S.players[S.p] : null; }
 
+function profileKey() { const pl = S && S.mode === 'family' ? S.players[S.p] : null; return pl ? pl.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '') : 'moi'; }
+const tutoKey = g => `tuto:${profileKey()}:${g.id}:${S.level}`;
+function rulesHTML(g, lvl) { return `<ul class="rules">${tutoRules(g.id, lvl).map(r => `<li>${r}</li>`).join('')}</ul>`; }
+function exampleHTML(g, lvl) { const T = TUTOS[g.id]; return `<div class="example"><div class="ex-title">Exemple</div><div class="ex-body">${T.ex(lvl)}</div><p class="ex-leg">${T.legend(lvl)}</p></div>`; }
 function intro() {
   Clock.reset();
-  const g = S.games[S.idx], lvl = S.level, pl = currentPlayer();
+  const g = S.games[S.idx], lvl = S.level, pl = currentPlayer(), T = TUTOS[g.id];
   const rec = S.mode !== 'family' ? store.get(recKey(g.id, lvl), null) : null;
   const step = S.games.length > 1 ? `Épreuve ${S.idx + 1} sur ${S.games.length}` : '';
-  screen(`
-    <div class="topbar"><button class="iconbtn" id="x" aria-label="Quitter">✕</button>
-      <span class="muted small" style="flex:1">${step}</span>
-      ${pl ? `<span class="pill">${pawn(pl.i, 22)}${esc(pl.name)}</span>` : ''}</div>
-    <div class="intro-top" style="background:${g.color};color:${g.fg}">
-      <div class="ic">${g.icon}</div><h1>${g.name}</h1>
-    </div>
-    <p class="intro-rule">${g.rule(lvl)}</p>
-    <div class="chips">${catPill(g.cat)}<span class="pill">⏱ ${g.info(lvl)}</span><span class="pill">${gauge(LEVELS[lvl].g)} ${LEVELS[lvl].name}</span>${rec != null ? `<span class="pill">🏆 Record : ${rec}</span>` : ''}</div>
+  const done = store.get(tutoKey(g), false);
+  app.innerHTML = `<div class="screen play">${scene(g.id)}
+    <div class="topbar"><button class="iconbtn" id="x" aria-label="Quitter">✕</button>${step ? `<span class="plaque small" style="margin-left:auto">${step}</span>` : ''}${pl ? `<span class="plaque small" style="${step ? '' : 'margin-left:auto'}">${esc(pl.name)}</span>` : ''}</div>
+    <div class="postcard short">${SCENES[g.id]}<div class="tag"><span class="ic">${g.icon}</span><div><h1>${g.name}</h1><span class="small">${T.but}</span></div></div></div>
+    <div class="coach">${MECHE.replace('data-mood="neutral"', 'data-mood="happy"')}<div class="bubble">${rulesHTML(g, lvl)}</div></div>
+    ${exampleHTML(g, lvl)}
+    <div class="chips" style="margin-top:10px">${catPill(g.cat)}<span class="pill">⏱ ${g.info(lvl)}</span><span class="pill">${gauge(LEVELS[lvl].g)} ${LEVELS[lvl].name}</span>${rec != null ? `<span class="pill">🏆 ${rec}</span>` : ''}</div>
     <div class="spacer"></div>
-    <button class="btn" id="go" style="margin-top:20px">On y va !</button>
-  `);
+    ${done ? `<button class="btn go" id="go">On y va !</button><button class="btn secondary" id="try">Refaire l’essai</button>`
+      : `<button class="btn go" id="try">Essayer sans chrono</button><button class="btn ghost light" id="go">Passer l’essai</button>`}
+  </div>`;
   on('#x', 'click', () => confirmLeave(false));
-  on('#go', 'click', () => { if (settings.sound) beep(660); play(g); });
+  on('#go', 'click', () => { SFX('tap'); play(g, false); });
+  on('#try', 'click', () => { SFX('tap'); play(g, true); });
 }
-
+function practiceRetry(g) {
+  Clock.reset(); SFX('ko');
+  app.innerHTML = `<div class="screen play result">${scene(g.id)}
+    <div class="card">${MECHE.replace('data-mood="neutral"', 'data-mood="surprised"')}<h2>Pas encore tout à fait…</h2>
+    <p style="font-weight:500">${TUTOS[g.id].oops}</p>${exampleHTML(g, S.level)}</div>
+    <div class="spacer"></div><button class="btn go" id="again">On réessaie</button><button class="btn secondary" id="go">Passer au vrai jeu</button></div>`;
+  on('#again', 'click', () => play(g, true));
+  on('#go', 'click', () => play(g, false));
+}
+function practiceDone(g) {
+  Clock.reset(); store.set(tutoKey(g), true); SFX('end');
+  app.innerHTML = `<div class="screen play result">${scene(g.id)}
+    <div class="card">${MECHE.replace('data-mood="neutral"', 'data-mood="happy"')}<h2>Tu as compris !</h2>
+    <p style="font-weight:500">Le vrai jeu commence maintenant, avec le chrono.</p>${rulesHTML(g, S.level)}</div>
+    <div class="spacer"></div><button class="btn go" id="go">C’est parti !</button><button class="btn secondary" id="again">Refaire l’essai</button></div>`;
+  on('#go', 'click', () => play(g, false));
+  on('#again', 'click', () => play(g, true));
+}
 function confirmLeave(inGame) {
   if (inGame) Clock.paused = true;
   const fam = S && S.mode === 'family', multi = S && S.mode !== 'train';
-  const canSkip = inGame && multi && CUR && !CUR.over;
+  const practice = CUR && CUR.practice && !CUR.over;
+  const canSkip = inGame && multi && CUR && !CUR.over && !practice;
+  const g = S && S.games[S.idx];
   sheet(`
     <h2>${inGame ? 'Pause' : fam ? 'Arrêter la partie ?' : 'Tu quittes ?'}</h2>
-    <p class="muted">${inGame ? (canSkip ? 'Tu peux reprendre, passer cette épreuve (elle comptera 0) ou tout arrêter.' : 'Si tu arrêtes, ce score ne sera pas gardé.') : fam ? 'Les scores de la partie seront perdus.' : S && S.mode === 'solo' && S.idx > 0 ? 'Le test complet sera interrompu.' : 'Tu reviendras quand tu veux.'}</p>
-    <button class="btn" id="cont">${inGame ? 'Reprendre' : 'Rester'}</button>
+    ${inGame && g ? `<details class="rev"><summary>Revoir la consigne</summary>${rulesHTML(g, S.level)}${exampleHTML(g, S.level)}</details>` : ''}
+    <p class="muted">${practice ? 'C’est l’essai : rien n’est compté.' : inGame ? (canSkip ? 'Tu peux reprendre, passer cette épreuve (elle comptera 0) ou tout arrêter.' : 'Si tu arrêtes, ce score ne sera pas gardé.') : fam ? 'Les scores de la partie seront perdus.' : S && S.mode === 'solo' && S.idx > 0 ? 'Le test complet sera interrompu.' : 'Tu reviendras quand tu veux.'}</p>
+    <button class="btn go" id="cont">${inGame ? 'Reprendre' : 'Rester'}</button>
+    ${practice ? '<button class="btn secondary" id="endp">Terminer l’essai</button>' : ''}
     ${canSkip ? '<button class="btn secondary" id="skip">Passer cette épreuve</button>' : ''}
-    <button class="btn ${canSkip ? 'ghost' : 'secondary'}" id="stop">${inGame && !multi ? 'Arrêter l’épreuve' : fam ? 'Arrêter la partie' : multi ? 'Arrêter le test' : 'Quitter'}</button>
+    <button class="btn ${canSkip || practice ? 'ghost' : 'secondary'}" id="stop">${inGame && !multi ? 'Arrêter l’épreuve' : fam ? 'Arrêter la partie' : multi ? 'Arrêter le test' : 'Quitter'}</button>
   `, (root, close) => {
     on('#cont', 'click', () => { close(); Clock.paused = false; }, root);
+    on('#endp', 'click', () => { close(); Clock.paused = false; CUR.over = true; practiceDone(g); }, root);
     on('#skip', 'click', () => { close(); Clock.paused = false; CUR.done(0, 'Épreuve passée'); }, root);
     on('#stop', 'click', () => { close(); const back = S && S.mode === 'train' ? () => trainGrid(S.filter) : home; Clock.reset(); back(); }, root);
   });
@@ -259,30 +279,40 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden && $('#stage') && !Clock.paused && !$('#sheet-root').innerHTML) confirmLeave(true);
 });
 
-function play(g) {
+function play(g, practice) {
   Clock.reset();
-  screen(`
-    <div class="hud"><button class="iconbtn" id="x" aria-label="Arrêter l’épreuve">✕</button>
-      <span class="gn" style="color:inherit">${g.icon} ${g.name}</span>
-      <span class="sc" id="sc" aria-live="polite">0</span></div>
-    <div class="fuse" id="fuse"><div class="track"><div class="fill" id="fill" style="background:${g.color}"></div></div><span class="secs" id="secs"></span></div>
-    <div class="stage" id="stage"></div>
-  `);
-  const stage = $('#stage'), fill = $('#fill'), secs = $('#secs'), fuse = $('#fuse'), sc = $('#sc');
+  app.innerHTML = `<div class="screen play">${scene(g.id)}<div class="hud"><button class="iconbtn" id="x" aria-label="Pause">⏸</button>
+    ${MECHE.replace('class="mascot"', 'class="mascot" id="hm"')}<span class="gn">${g.name}</span>
+    <span class="buoy" id="buoy"><span id="sc" aria-live="polite">0</span></span></div>
+    <div class="fuse" id="fuse"><div class="track"><div class="fill" id="fill"></div></div><span class="secs" id="secs"></span></div>
+    ${practice ? '<div class="practice-pill">Essai · ne compte pas</div>' : ''}
+    <div class="coachtip" id="tip" aria-live="polite"></div>
+    <div class="stage" id="stage"></div></div>`;
+  window.scrollTo(0, 0);
+  const stage = $('#stage'), fill = $('#fill'), secs = $('#secs'), fuse = $('#fuse'), sc = $('#sc'), tip = $('#tip'), T = TUTOS[g.id];
   on('#x', 'click', () => confirmLeave(true));
   Clock.start();
-  const rng = makeRng(hashStr(S.seed + ':' + g.id + ':' + S.level));
+  const rng = makeRng(hashStr(S.seed + ':' + g.id + ':' + S.level + (practice ? ':essai' : '')));
+  let goods = 0, lastInput = 0, tipT = null;
+  const say = (txt, ms = 2600) => { tip.textContent = txt; tip.classList.add('show'); clearTimeout(tipT); tipT = setTimeout(() => tip.classList.remove('show'), ms); };
+  if (practice) {
+    stage.addEventListener('pointerdown', () => { lastInput = Clock.t; $$('.hint', stage).forEach(e => e.classList.remove('hint')); }, true);
+    Clock.tick(t => { if (t - lastInput > 5000) { const h = $('[data-ok]', stage); if (h && !h.classList.contains('hint')) { h.classList.add('hint'); say('Indice : c’est celui qui clignote.'); } } });
+    fuse.style.visibility = 'hidden';
+  }
   const c = CUR = {
-    stage, level: S.level, rng, over: false,
+    stage, level: S.level, rng, over: false, practice: !!practice,
     L: o => o[S.level],
-    tm: ms => ms * (settings.moreTime ? 1.5 : 1),
+    tm: ms => ms * (settings.moreTime ? 1.5 : 1) * (practice ? 1.6 : 1),
     later: (fn, ms) => Clock.later(fn, ms),
     cancel: id => Clock.cancel(id),
     now: () => Clock.t,
-    beep: f => beep(f, .1),
-    score: v => { sc.textContent = v; },
+    beep: f => { if (settings.sound) beep(f, .1); },
+    ok: el => { $$('[data-ok]', stage).forEach(e => { if (e !== el) { delete e.dataset.ok; e.classList.remove('hint'); } }); if (el) { el.dataset.ok = '1'; lastInput = Math.max(lastInput, Clock.t - 1500); if (practice && (g.id === 'lanterne' || g.id === 'bateaux')) { el.classList.add('hint'); say(g.id === 'lanterne' ? 'Elle brille : touche !' : 'Un bateau : touche l’eau !', 1200); } } },
+    score: v => { sc.textContent = v; fx($('#buoy'), 'bump'); },
     progress: r => { fuse.classList.remove('urgent'); fill.style.width = (Math.max(0, Math.min(1, r)) * 100) + '%'; secs.textContent = ''; },
     timer(sec, onEnd) {
+      if (practice) return () => { };
       const total = c.tm(sec * 1000), st = Clock.t; let fired = false, lastS = null;
       fuse.classList.remove('urgent');
       const off = Clock.tick(t => {
@@ -296,28 +326,32 @@ function play(g) {
       return () => { if (!fired) { fired = true; off(); } };
     },
     good(el, word) {
-      haptic(15); beep(880);
-      if (el) fx(el, 'ok-fx');
+      haptic(15); SFX('ok'); mood($('#hm'), 'happy', 700);
+      if (el) { fx(el, 'ok-fx'); burst(el, true); }
       if (word && el) { const r = el.getBoundingClientRect(); floatWord(r.left + r.width / 2, r.top); }
+      if (practice) { goods++; if (goods >= T.goal && !c.over) { c.over = true; Clock.later(() => practiceDone(g), 700); } else say(['Bien !', 'C’est ça !', 'Parfait.', 'Oui !'][goods % 4], 1200); }
     },
-    bad(el) { haptic([30, 40, 30]); beep(200); if (el) fx(el, 'ko-fx'); },
+    bad(el) {
+      haptic([30, 40, 30]); SFX('ko'); mood($('#hm'), 'surprised', 700);
+      if (el) { fx(el, 'ko-fx'); burst(el, false); }
+      if (practice) say(T.oops, 3200);
+    },
     done(raw, detail) {
       if (c.over) return; c.over = true;
+      if (practice) { if (goods >= T.goal) practiceDone(g); else practiceRetry(g); return; }
       Clock.reset();
       const score = Math.round(Math.max(0, Math.min(100, raw)));
       gameEnd(g, score, detail);
     }
   };
-  // compte à rebours 3-2-1
   let n = 3;
   const cd = () => {
-    if (n === 0) { stage.innerHTML = ''; g.run(c); return; }
-    stage.innerHTML = `<div class="cd" style="color:${g.color}"><span>${n}</span></div>`;
-    beep(440 + (3 - n) * 80, .08); n--; Clock.later(cd, 700);
+    if (n === 0) { stage.innerHTML = ''; SFX('count', 0); if (practice) say('Essai sans chrono : prends ton temps.', 2500); g.run(c); return; }
+    stage.innerHTML = `<div class="cd"><span>${n}</span></div>`;
+    SFX('count', n); n--; Clock.later(cd, 700);
   };
   cd();
 }
-
 function phrase(score) {
   const pick = a => a[Math.floor(Math.random() * a.length)];
   if (score >= 85) return pick(['Impressionnant, vraiment.', 'Là, tu as tout pigé.', 'Difficile de faire mieux !']);
@@ -336,32 +370,30 @@ function gameEnd(g, score, detail) {
   }
   const last = S.idx >= S.games.length - 1;
   const pl = currentPlayer();
-  const prog = S.games.length > 1 ? `<div class="prog" aria-label="Progression">${S.games.map((_, k) => `<i class="${k < S.idx ? 'd' : k === S.idx ? 'c' : ''}"></i>`).join('')}</div><p class="small muted" style="text-align:center;margin:0">${S.idx + 1} sur ${S.games.length}</p>` : '';
-  screen(`
-    <div class="res-head">
-      <div class="intro-top" style="background:${g.color};color:${g.fg};display:inline-block;padding:12px 26px;margin-bottom:12px"><span style="font-size:2.6rem">${g.icon}</span></div>
-      <h2>${g.name}</h2>
-      ${pl ? `<p class="muted">${esc(pl.name)}</p>` : ''}
-      <div class="bigscore" style="margin-top:10px">${score}<small> / 100</small></div>
-      <p class="muted" style="font-size:1.05rem">${esc(detail)}</p>
-      ${rec && prev != null ? `<div class="recband">Nouveau record ! Tu bats ton record (${prev}).</div>` : ''}
-      <p style="margin-top:12px;font-weight:500">${phrase(score)}</p>
-    </div>
-    ${prog}
-    <div class="spacer"></div>
-    <div id="acts" style="margin-top:18px"></div>
-  `);
+  const n = starsOf(score), next = [40, 65, 85].find(s => s > score);
+  const prog = S.games.length > 1 ? `<div class="prog" aria-label="Progression">${S.games.map((_, k) => `<i class="${k < S.idx ? 'd' : k === S.idx ? 'c' : ''}"></i>`).join('')}</div>` : '';
+  app.innerHTML = `<div class="screen play result">${scene(g.id)}
+    <div class="card">${MECHE.replace('data-mood="neutral"', `data-mood="${n >= 2 ? 'happy' : 'neutral'}"`)}<h2>${g.name}</h2>
+    ${pl ? `<p class="muted" style="margin:0">${esc(pl.name)}</p>` : ''}
+    ${starsHTML(n, true)}<div class="bigscore" id="bs">0<small> / 100</small></div>
+    <p class="muted">${esc(detail)}</p>
+    ${rec && prev != null ? `<div class="recband">🏆 Nouveau record ! (avant : ${prev})</div>` : ''}
+    <p style="font-weight:500;margin-top:10px">${next ? `Encore ${next - score} point${next - score > 1 ? 's' : ''} pour la ${n === 0 ? '1<sup>re</sup>' : (n + 1) + '<sup>e</sup>'} étoile.` : 'Trois étoiles : le maximum !'} ${phrase(score)}</p>
+    ${prog}</div>
+    <div class="spacer"></div><div id="acts" style="margin-top:16px"></div></div>`;
+  countUp($('#bs'), score, '<small> / 100</small>');
+  if (rec && prev != null) { SFX('record'); confetti(40); } else { SFX('end'); if (n === 3) confetti(30); }
   const acts = $('#acts');
   if (S.mode === 'train') {
-    acts.innerHTML = `<button class="btn" id="again">Rejouer</button><button class="btn secondary" id="other">Autres épreuves</button>`;
+    acts.innerHTML = `<button class="btn go" id="again">Rejouer</button><button class="btn secondary" id="other">Autres épreuves</button>`;
     on('#again', 'click', () => { S.seed = newSeed(); S.scores = {}; intro(); });
     on('#other', 'click', () => trainGrid(S.filter));
   } else if (S.mode === 'solo') {
-    acts.innerHTML = `<button class="btn ${last ? 'accent' : ''}" id="nx">${last ? 'Voir mon résultat' : 'Épreuve suivante'}</button>`;
+    acts.innerHTML = `<button class="btn go" id="nx">${last ? 'Voir mon résultat' : 'Épreuve suivante'}</button>`;
     on('#nx', 'click', () => { if (last) soloFinal(); else { S.idx++; intro(); } });
   } else {
     const lastPlayer = S.p >= S.players.length - 1;
-    acts.innerHTML = `<button class="btn ${last ? 'accent' : ''}" id="nx">${!last ? 'Épreuve suivante' : lastPlayer ? 'Voir le podium' : 'Au joueur suivant'}</button>`;
+    acts.innerHTML = `<button class="btn go" id="nx">${!last ? 'Épreuve suivante' : lastPlayer ? 'Voir le podium' : 'Au joueur suivant'}</button>`;
     on('#nx', 'click', () => {
       if (!last) { S.idx++; intro(); return; }
       pl.total = totalOf(pl.scores, S.games);
@@ -369,8 +401,7 @@ function gameEnd(g, score, detail) {
     });
   }
 }
-
-function totalOf(scores, games) { const v = games.map(g => scores[g.id] || 0); return Math.round(v.reduce((a, b) => a + b, 0) / v.length * 10); }
+function totalOf(scores, games) { const v = games.map(g => scores[g.id] || 0); return Math.round(v.reduce((a, b) => a + b, 0) / v.length); }
 function profileOf(scores, games) {
   const avg = cat => { const v = games.filter(g => g.cat === cat).map(g => scores[g.id] || 0); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; };
   const sp = avg('speed'), lo = avg('logic'), sum = sp + lo;
@@ -383,28 +414,19 @@ function soloFinal() {
   const total = totalOf(S.scores, S.games), pf = profileOf(S.scores, S.games);
   const prev = store.get('best:' + S.level, null), rec = prev == null || total > prev;
   if (rec) store.set('best:' + S.level, total);
-  const sorted = S.games.slice().sort((a, b) => (S.scores[b.id] || 0) - (S.scores[a.id] || 0));
-  const msg = pf.label === 'Plutôt éclair' ? 'Tu réagis au quart de tour. Côté logique, il reste de quoi grimper.'
-    : pf.label === 'Plutôt stratège' ? 'Tu réfléchis bien, et la vitesse peut encore suivre.' : 'Rapidité et logique avancent ensemble. Bel équilibre.';
-  const nextLvl = S.level === 'F' && total >= 600 ? ' Essaie « En forme » la prochaine fois ?' : S.level === 'N' && total >= 650 ? ' Prêt pour « Costaud » ?' : '';
-  screen(`
-    <div class="res-head">
-      <p class="muted">Test complet · ${LEVELS[S.level].name}</p>
-      <div class="bigscore" id="tot">0<small> / 1000</small></div>
-      ${rec && prev != null ? `<div class="recband">Nouveau record ! (avant : ${prev})</div>` : ''}
-      <h2 style="margin-top:14px">${pf.label}</h2>
-      <p class="muted">${msg}${nextLvl}</p>
-    </div>
-    <div class="balance">
-      <div class="bar"><div style="width:50%;background:var(--cat-speed);color:#1E1B4B" id="bs">⚡</div><div style="width:50%;background:var(--cat-logic);color:#fff" id="bl">⚙</div></div>
-      <div class="lbl"><span>Rapidité ${pf.sp}/100</span><span>Logique ${pf.lo}/100</span></div>
-    </div>
-    <div class="rlist">${sorted.map(g => `<div class="ritem"><span class="mini" style="background:${g.color}">${g.icon}</span><span>${g.name}</span><span class="v">${S.scores[g.id] || 0}</span></div>`).join('')}</div>
-    <button class="btn accent" id="again" style="margin-top:18px">Rejouer le test</button>
-    <button class="btn secondary" id="home">Retour à l’accueil</button>
-  `);
-  countUp($('#tot'), total, '<small> / 1000</small>');
-  requestAnimationFrame(() => { $('#bs').style.width = pf.pct + '%'; $('#bl').style.width = (100 - pf.pct) + '%'; });
+  const md = medalOf(total), nxt = total < 40 ? [40, 'le bronze'] : total < 60 ? [60, 'l’argent'] : total < 80 ? [80, 'l’or'] : null;
+  const nextLvl = S.level === 'F' && total >= 70 ? ' Essaie « En forme » la prochaine fois ?' : S.level === 'N' && total >= 70 ? ' Prêt pour « Costaud » ?' : '';
+  app.innerHTML = `<div class="screen play result">${scene('constellation')}
+    <div class="card">${md ? medalSVG(md) : MECHE}<p class="muted" style="margin:0">Test complet · ${LEVELS[S.level].name}</p>
+    <div class="bigscore" id="tot">0<small> / 100</small></div>
+    <p style="font-weight:700;margin:0">${md ? MEDALS[md][2] : 'Pas encore de médaille'}${rec && prev != null ? ' · 🏆 Nouveau record !' : ''}</p>
+    <p class="muted small">${nxt ? `Encore ${nxt[0] - total} point${nxt[0] - total > 1 ? 's' : ''} pour ${nxt[1]}.` : 'Le sommet de l’archipel !'} ${pf.label}.${nextLvl}</p>
+    <div class="split"><div class="sp">⚡ Rapidité<b>${pf.sp}</b></div><div class="lo">⚙ Logique<b>${pf.lo}</b></div></div>
+    <div class="isles">${S.games.map(g => { const s = S.scores[g.id] || 0; return `<span class="isle" title="${g.name} : ${s}">${g.icon}<em>${'★'.repeat(starsOf(s)) || s}</em></span>`; }).join('')}</div></div>
+    <button class="btn go" id="again" style="margin-top:16px">Rejouer le test</button><button class="btn secondary" id="home">Retour à l’accueil</button></div>`;
+  countUp($('#tot'), total, '<small> / 100</small>');
+  if (rec && prev != null) SFX('record'); else SFX('end');
+  if (md) setTimeout(() => confetti(md === 'or' ? 60 : 36), 500);
   on('#again', 'click', () => { S = { ...S, seed: newSeed(), idx: 0, scores: {}, details: {} }; intro(); });
   on('#home', 'click', home);
 }
@@ -505,7 +527,7 @@ function podium() {
   const P = S.players.slice().sort((a, b) => b.total - a.total);
   const top = P[0], second = P[1];
   const gap = second ? top.total - second.total : 0;
-  const title = second && gap === 0 ? 'Ex æquo !' : gap < 30 ? `${esc(top.name)} gagne, de justesse !` : `${esc(top.name)} gagne, de ${gap} points !`;
+  const title = second && gap === 0 ? 'Ex æquo !' : gap < 3 ? `${esc(top.name)} gagne, de justesse !` : `${esc(top.name)} gagne, de ${gap} points !`;
   const order = [P[1], P[0], P[2]].filter(Boolean);
   const heights = { 0: 160, 1: 128, 2: 96 };
   const rankOf = p => P.indexOf(p);
@@ -526,7 +548,7 @@ function podium() {
     ${P[3] ? `<div class="ritem">${pawn(P[3].i, 32)}<span>${P.filter(o => o.total > P[3].total).length + 1}. ${esc(P[3].name)}</span><span class="v">${P[3].total}</span></div>` : ''}
     <h3 style="margin-top:16px">Les points forts</h3>
     <div class="rlist">${notes}</div>
-    <p class="small muted" style="margin-top:10px">Score sur 1000 : moyenne des épreuves × 10.</p>
+    <p class="small muted" style="margin-top:10px">Score sur 100 : moyenne des épreuves.</p>
     <button class="btn accent" id="rev" style="margin-top:16px">Revanche</button>
     <button class="btn secondary" id="chg">Changer de joueurs</button>
     <button class="btn ghost" id="home">Accueil</button>

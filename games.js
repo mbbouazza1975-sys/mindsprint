@@ -93,9 +93,9 @@ const G_LANTERNE = {
   info: l => ({ F: '5 essais', N: '6 essais', E: '7 essais' })[l],
   run(c) {
     const P = c.L({
-      F: { n: 5, d: [1500, 3500], p: 0, fast: 300, slow: 900 },
-      N: { n: 6, d: [1000, 4000], p: .3, fast: 280, slow: 750 },
-      E: { n: 7, d: [800, 4500], p: .5, fast: 250, slow: 650 }
+      F: { n: 5, d: [1500, 3500], p: 0, fast: 300, slow: 1050 },
+      N: { n: 6, d: [1000, 4000], p: .2, fast: 200, slow: 1100 },
+      E: { n: 7, d: [800, 4500], p: .5, fast: 280, slow: 650 }
     });
     c.stage.innerHTML = `<div class="lant-pad" id="lp" role="button" tabindex="0" aria-label="Zone à toucher quand la lanterne s’allume">
       <div class="lantern" id="lan"><div class="cap"></div><div class="glass"></div><div class="base"></div></div>
@@ -110,10 +110,10 @@ const G_LANTERNE = {
         const mean = rts.length ? Math.round(rts.reduce((a, b) => a + b, 0) / rts.length) : null;
         return c.done(avg - pen, mean ? `Réaction moyenne : ${mean} ms` + (pen ? ` · ${pen / 10 > 1 ? pen / 10 + ' leurres touchés' : '1 leurre touché'}` : '') : 'Aucune réaction valide');
       }
-      state = 'wait'; flick = false; lan.className = 'lantern'; pad.classList.remove('lit');
+      state = 'wait'; flick = false; lan.className = 'lantern'; pad.classList.remove('lit'); c.ok(null);
       msg.textContent = 'Attends la lumière…';
       const d = c.rng.int(P.d[0], P.d[1]);
-      if (P.p && c.rng.chance(P.p)) {
+      if (P.p && i >= 2 && c.rng.chance(P.p)) {
         const ft = c.rng.int(400, Math.max(500, d - 500));
         ids.push(c.later(() => {
           if (state !== 'wait') return;
@@ -124,12 +124,12 @@ const G_LANTERNE = {
       ids.push(c.later(() => {
         if (state !== 'wait') return;
         state = 'lit'; lan.className = 'lantern lit'; pad.classList.add('lit'); msg.textContent = '';
-        litAt = c.now();
+        litAt = c.now(); c.ok(pad);
         ids.push(c.later(() => {
           if (state !== 'lit') return;
           state = 'pause'; scores.push(0); lan.className = 'lantern'; pad.classList.remove('lit');
-          msg.textContent = 'Trop tard !'; c.bad(pad); next();
-        }, 2000));
+          msg.textContent = 'Trop tard !'; c.ok(null); c.bad(pad); next();
+        }, c.tm(2000)));
       }, d));
     }
     function next() { i++; c.progress(i / P.n); c.score(`${i}/${P.n}`); c.later(round, 1100); }
@@ -155,7 +155,7 @@ const G_BATEAUX = {
   rule: () => "Un bateau ⛵ ou un requin 🦈 surgit de l'eau. Touche vite les bateaux, mais ne touche jamais les requins.",
   info: () => '30 secondes',
   run(c) {
-    const P = c.L({ F: { go: .8, show: 1100, isi: 1300 }, N: { go: .75, show: 850, isi: 1000 }, E: { go: .7, show: 650, isi: 800, move: true } });
+    const P = c.L({ F: { go: .85, show: 1100, isi: 1300 }, N: { go: .85, show: 700, isi: 900 }, E: { go: .7, show: 600, isi: 800, move: true } });
     c.stage.innerHTML = `<div class="sea" id="sea"><div class="sea-item" id="it"></div><div class="sea-legend">⛵ oui · 🦈 non</div></div>`;
     const sea = $('#sea', c.stage), it = $('#it', c.stage);
     let goN = 0, nogoN = 0, hits = 0, fa = 0, run = 0, cur = null;
@@ -168,8 +168,10 @@ const G_BATEAUX = {
       it.textContent = isGo ? '⛵' : '🦈';
       if (P.move) { it.style.left = (50 + c.rng.int(-25, 25)) + '%'; it.style.top = (50 + c.rng.int(-22, 22)) + '%'; }
       it.className = 'sea-item show';
-      c.later(() => { if (cur === me) { cur = null; if (!me.tapped) it.className = 'sea-item'; } }, c.tm(P.show));
-      c.later(spawn, c.tm(P.isi) + c.rng.int(-150, 150));
+      if (isGo) c.ok(sea); else c.ok(null);
+      const ramp = c.now() < 8000 ? 1.3 : 1;
+      c.later(() => { if (cur === me) { cur = null; c.ok(null); if (!me.tapped) it.className = 'sea-item'; } }, c.tm(P.show * ramp));
+      c.later(spawn, c.tm(P.isi * ramp) + c.rng.int(-150, 150));
     }
     sea.addEventListener('pointerdown', e => {
       e.preventDefault(); if (c.over || !cur || cur.tapped) return;
@@ -192,21 +194,22 @@ const G_VENT = {
     : "Une flèche apparaît d'un côté de l'écran. Touche le côté vers lequel elle pointe, peu importe où elle se trouve.",
   info: () => '30 secondes',
   run(c) {
-    const P = c.L({ F: { cong: .7, moon: 0, target: 22 }, N: { cong: .5, moon: 0, target: 30 }, E: { cong: .5, moon: .3, target: 28 } });
+    const P = c.L({ F: { cong: .7, moon: 0, target: 39 }, N: { cong: .5, moon: 0, target: 52 }, E: { cong: .5, moon: .3, target: 50 } });
     c.stage.innerHTML = `<div class="hint-lr"><span>← gauche</span><span>droite →</span></div>
       <div class="halves"><button class="half" data-s="0" aria-label="Côté gauche"></button><button class="half" data-s="1" aria-label="Côté droit"></button></div>`;
     const halves = $$('.half', c.stage);
-    let ok = 0, ko = 0, ans = -1, ready = false;
+    let ok = 0, ko = 0, ans = -1, ready = false, nt = 0;
     c.score(0);
     function trial() {
       const side = c.rng.int(0, 1);
-      const cong = c.rng.chance(P.cong);
+      const warm = nt++ < 4;
+      const cong = warm ? true : c.rng.chance(P.cong);
       const dirLR = cong ? side : 1 - side; // 0 = gauche, 1 = droite
-      const moon = c.rng.chance(P.moon);
+      const moon = warm ? false : c.rng.chance(P.moon);
       ans = moon ? side : dirLR;
       halves.forEach(h => h.innerHTML = '');
       halves[side].innerHTML = arrowSVG(dirLR ? 1 : 3, '#00A6C8') + (moon ? '<span class="moon" aria-label="lune">🌙</span>' : '');
-      ready = true;
+      c.ok(halves[ans]); ready = true;
     }
     halves.forEach(h => h.addEventListener('pointerdown', e => {
       e.preventDefault(); if (c.over || !ready) return;
@@ -228,7 +231,7 @@ const G_CONSTEL = {
     : "La carte du haut montre l'étoile à trouver. Attention : les autres ont la même forme ou la même couleur. Seule la bonne a les deux.",
   info: () => '30 secondes',
   run(c) {
-    const P = c.L({ F: { n: 8, conj: false, target: 10, rot: 0 }, N: { n: 14, conj: true, target: 12, rot: 0 }, E: { n: 20, conj: true, target: 14, rot: 20 } });
+    const P = c.L({ F: { n: 8, conj: false, target: 23, rot: 0 }, N: { n: 14, conj: true, target: 25, rot: 0 }, E: { n: 20, conj: true, target: 27, rot: 20 } });
     c.stage.innerHTML = `<div class="target-card" id="tc" aria-live="polite"></div><div class="sky" id="sky"></div>`;
     const sky = $('#sky', c.stage), tc = $('#tc', c.stage);
     let found = 0, err = 0;
@@ -254,6 +257,7 @@ const G_CONSTEL = {
         b.style.left = (pts[i].x - 26) + 'px'; b.style.top = (pts[i].y - 26) + 'px';
         b.setAttribute('aria-label', `${SHAPES[it.s]} ${COLORS[it.k].n}`);
         b.innerHTML = shapeSVG(it.s, COLORS[it.k].h, P.rot ? c.rng.int(-P.rot, P.rot) : 0);
+        if (it.target) c.ok(b);
         b.addEventListener('pointerdown', e => {
           e.preventDefault(); e.stopPropagation(); if (c.over) return;
           if (it.target) { found++; c.score(found); c.good(b, false); gen(); }
@@ -272,7 +276,7 @@ const G_GUE = {
   rule: () => "Un calcul s'affiche au-dessus de la rivière. Touche la pierre qui porte le bon résultat pour avancer. Cinq bonnes réponses d'affilée rapportent un bonus.",
   info: () => '30 secondes',
   run(c) {
-    const P = c.L({ F: { target: 12 }, N: { target: 15 }, E: { target: 13 } });
+    const P = c.L({ F: { target: 9 }, N: { target: 16 }, E: { target: 25 } });
     c.stage.innerHTML = `<div class="ford"><div class="prompt" id="q" aria-live="polite"></div><div class="streak" id="st"></div><div class="stones" id="stones"></div></div>`;
     const q = $('#q', c.stage), stones = $('#stones', c.stage), st = $('#st', c.stage);
     let good = 0, bonus = 0, err = 0, streak = 0;
@@ -306,6 +310,7 @@ const G_GUE = {
       stones.innerHTML = '';
       Q.opts.forEach(v => {
         const b = document.createElement('button'); b.className = 'stone'; b.textContent = v;
+        if (v === Q.ans) c.ok(b);
         b.addEventListener('pointerdown', e => {
           e.preventDefault(); if (c.over) return;
           if (v === Q.ans) {
@@ -328,9 +333,9 @@ const G_LUCIOLES = {
   info: () => '20 essais',
   run(c) {
     const P = c.L({
-      F: { r: [4, 16], ratios: [2, 1.5], show: 1200 },
-      N: { r: [8, 30], ratios: [1.33, 1.25], show: 800 },
-      E: { r: [15, 45], ratios: [1.2, 1.14, 1.11], show: 500 }
+      F: { r: [4, 16], ratios: [1.4, 1.33], show: 1200 },
+      N: { r: [8, 30], ratios: [1.2], show: 800 },
+      E: { r: [15, 45], ratios: [1.17, 1.14], show: 500 }
     });
     const N = 20;
     c.stage.innerHTML = `<div class="question" id="qq" aria-live="polite"></div>
@@ -358,12 +363,12 @@ const G_LUCIOLES = {
       ready = false;
       c.later(() => {
         banks.forEach(b => b.innerHTML = '<div class="cover">?</div>');
-        qq.textContent = 'Où y en avait-il le plus ?'; ready = true;
+        qq.textContent = 'Où y en avait-il le plus ?'; c.ok(banks[big]); ready = true;
       }, c.tm(P.show));
     }
     banks.forEach(b => b.addEventListener('pointerdown', e => {
       e.preventDefault(); if (c.over || !ready) return;
-      ready = false; i++;
+      ready = false; i++; c.ok(null);
       if (+b.dataset.s === big) { ok++; c.good(b, false); qq.textContent = 'Bien vu !'; } else { c.bad(b); qq.textContent = "C'était l'autre côté."; }
       c.score(ok); c.progress(i / N);
       c.later(trial, 450);
@@ -383,9 +388,9 @@ const G_PHARES = {
   info: l => ({ F: '3 essais ratés max', N: '2 essais ratés max', E: '2 essais ratés max' })[l],
   run(c) {
     const P = c.L({
-      F: { n: 6, start: 2, on: 900, off: 300, fake: false, target: 6, fails: 3 },
-      N: { n: 9, start: 3, on: 700, off: 250, fake: false, target: 7, fails: 2 },
-      E: { n: 9, start: 3, on: 550, off: 200, fake: true, target: 8, fails: 2 }
+      F: { n: 6, start: 2, on: 900, off: 300, fake: false, target: 7, fails: 3 },
+      N: { n: 9, start: 3, on: 700, off: 250, fake: false, target: 9, fails: 2 },
+      E: { n: 9, start: 3, on: 450, off: 200, fake: true, target: 9, fails: 2 }
     });
     c.stage.innerHTML = `<div class="memmsg" id="mm" aria-live="polite"></div><div class="map" id="map"></div>`;
     const map = $('#map', c.stage), mm = $('#mm', c.stage);
@@ -425,19 +430,19 @@ const G_PHARES = {
       mm.textContent = `Regarde bien… (${len} phares)`;
       const on = c.tm(P.on), step = on + c.tm(P.off);
       show.forEach((s, k) => c.later(() => { flash(s.v, s.fake ? 'fake' : 'on', on); c.beep(s.fake ? 300 : 660); }, 600 + k * step));
-      c.later(() => { locked = false; mm.textContent = 'À toi !'; }, 600 + show.length * step);
+      c.later(() => { locked = false; mm.textContent = 'À toi !'; c.ok(beacons[seq[0]]); }, 600 + show.length * step);
     }
     function press(i) {
       if (c.over || locked) return;
       if (i === seq[input]) {
-        flash(i, 'on', 220); input++;
+        flash(i, 'on', 220); input++; c.ok(input < seq.length ? beacons[seq[input]] : null);
         if (input === seq.length) {
           locked = true; seqs++; best = Math.max(best, len); c.score(best); len++;
           mm.textContent = 'Bravo !'; c.good(null, false);
           c.later(round, 900);
         }
       } else {
-        locked = true; seqs++; fails++; c.bad(beacons[i]);
+        locked = true; seqs++; fails++; c.ok(null); c.bad(beacons[i]);
         beacons[i].classList.add('bad'); flash(seq[input], 'on', 900);
         mm.textContent = fails >= P.fails ? "C'est fini pour cette fois." : `Raté ! Encore ${P.fails - fails} essai${P.fails - fails > 1 ? 's' : ''}.`;
         c.later(() => { beacons[i].classList.remove('bad'); round(); }, 1300);
@@ -453,7 +458,7 @@ const G_COLLIER = {
     + (l === 'F' ? '' : ' Plusieurs choses peuvent changer en même temps.'),
   info: () => '8 colliers',
   run(c) {
-    const P = c.L({ F: { vary: 1, len: 4, ch: 3, lim: 20 }, N: { vary: 2, len: 5, ch: 4, lim: 15 }, E: { vary: 3, len: 6, ch: 4, lim: 15 } });
+    const P = c.L({ F: { vary: 1, len: 4, ch: 3, lim: 14 }, N: { vary: 2, len: 5, ch: 4, lim: 12 }, E: { vary: 3, len: 6, ch: 4, lim: 11 } });
     const ROUNDS = 8;
     c.stage.innerHTML = `<div class="necklace" id="nk"></div><p class="muted small" style="text-align:center;margin:0">Lequel vient ensuite ?</p><div class="answers c${P.ch === 3 ? 3 : 2}" id="ch"></div>`;
     const nk = $('#nk', c.stage), ch = $('#ch', c.stage);
@@ -565,7 +570,7 @@ const G_RECIF = {
     + (l === 'F' ? '' : ' Attention aux récifs retournés comme dans un miroir : ils ne comptent pas.'),
   info: () => '8 récifs',
   run(c) {
-    const P = c.L({ F: { k: 4, ch: 3, mir: 0, lim: 15, rots: [1, 2] }, N: { k: 5, ch: 4, mir: 1, lim: 12, rots: [1, 2, 3] }, E: { k: 6, ch: 4, mir: 2, lim: 10, rots: [1, 2, 3] } });
+    const P = c.L({ F: { k: 4, ch: 4, mir: 0, lim: 10, rots: [1, 3] }, N: { k: 5, ch: 4, mir: 1, lim: 12, rots: [1, 2, 3] }, E: { k: 6, ch: 4, mir: 2, lim: 7, rots: [1, 2, 3] } });
     const ROUNDS = 8;
     c.stage.innerHTML = `<div class="reef-model" id="rm"></div><p class="muted small" style="text-align:center;margin:0">Lequel est le même, tourné ?</p><div class="answers c${P.ch === 3 ? 3 : 2}" id="ch"></div>`;
     const rm = $('#rm', c.stage), ch = $('#ch', c.stage);
@@ -637,7 +642,7 @@ const G_COURANTS = {
     + (l === 'E' ? " Un tourbillon 🌀 fait tourner son courant d'un quart de tour dans le sens des aiguilles d'une montre." : ''),
   info: () => '6 traversées',
   run(c) {
-    const P = c.L({ F: { n: 4, L: [4, 5], isl: 3, wh: 0, lim: 20 }, N: { n: 5, L: [6, 8], isl: 4, wh: 0, lim: 15 }, E: { n: 6, L: [9, 12], isl: 4, wh: 2, lim: 15 } });
+    const P = c.L({ F: { n: 4, L: [5, 6], isl: 3, wh: 0, lim: 20 }, N: { n: 5, L: [8, 10], isl: 4, wh: 0, lim: 12 }, E: { n: 6, L: [9, 12], isl: 4, wh: 1, lim: 12 } });
     const ROUNDS = 6;
     c.stage.innerHTML = `<div class="cgrid" id="cg"></div>`;
     const cg = $('#cg', c.stage);
@@ -733,8 +738,8 @@ const G_CABINES = {
   run(c) {
     const P = c.L({
       F: { n: 3, tpl: ['end', 'mid', 'left'], max: 3, puz: 4, lim: 40, neg: false },
-      N: { n: 4, tpl: ['end', 'mid', 'left', 'next', 'adj', 'nadj', 'notin'], max: 5, puz: 4, lim: 50, neg: false },
-      E: { n: 5, tpl: ['end', 'mid', 'left', 'next', 'adj', 'nadj', 'notin'], max: 6, puz: 3, lim: 60, neg: true }
+      N: { n: 4, tpl: ['end', 'mid', 'left', 'next', 'adj', 'nadj', 'notin'], max: 5, puz: 4, lim: 45, neg: false },
+      E: { n: 5, tpl: ['end', 'mid', 'left', 'next', 'adj', 'nadj', 'notin'], max: 6, puz: 3, lim: 40, neg: true }
     });
     let pz = 0, total = 0, perfect = 0;
     c.score(0);
@@ -785,7 +790,7 @@ const G_CABINES = {
       return best;
     }
     function next() {
-      if (pz >= P.puz) return c.done(total, `${perfect}/${P.puz} énigme${P.puz > 1 ? 's' : ''} parfaitement résolue${P.puz > 1 ? 's' : ''}`);
+      if (pz >= (c.practice ? 2 : P.puz)) return c.done(total, `${perfect}/${P.puz} énigme${P.puz > 1 ? 's' : ''} parfaitement résolue${P.puz > 1 ? 's' : ''}`);
       const Q = gen(), n = P.n;
       const place = Array(n).fill(null); // place[cabine] = indice animal
       let sel = null, answered = false;
@@ -820,6 +825,8 @@ const G_CABINES = {
           tray.appendChild(b);
         });
         val.disabled = place.includes(null);
+        if (sel !== null) c.ok(cab.children[Q.sol.indexOf(sel)]);
+        else { const wrong = place.findIndex((v, k) => v !== null && v !== Q.sol[k]); c.ok(wrong >= 0 ? cab.children[wrong] : place.includes(null) ? tray.children[0] : val); }
       }
       function finish() {
         if (answered) return; answered = true; stop();
@@ -844,7 +851,7 @@ const G_MOUETTES = {
     + (l === 'F' ? ' On te préviendra quand elle change.' : ''),
   info: () => '24 cartes',
   run(c) {
-    const P = c.L({ F: { B: 2, dims: ['color', 'shape'], K: [4, 4], warn: true }, N: { B: 3, dims: ['color', 'shape', 'count'], K: [5, 5], warn: false }, E: { B: 3, dims: ['color', 'shape', 'count'], K: [4, 6], warn: false, pers: true } });
+    const P = c.L({ F: { B: 3, dims: ['color', 'shape', 'count'], K: [3, 3], warn: true }, N: { B: 3, dims: ['color', 'shape', 'count'], K: [3, 3], warn: false }, E: { B: 3, dims: ['color', 'shape', 'count'], K: [3, 3], warn: false, pers: true } });
     const TOTAL = 24, DN = { color: 'la couleur', shape: 'la forme', count: 'le nombre' };
     const models = Array.from({ length: P.B }, (_, b) => ({ shape: b, color: b, count: b + 1 }));
     c.stage.innerHTML = `<div class="banner" id="bn" aria-live="polite"></div><div class="sortcard" id="card"></div>
@@ -872,7 +879,7 @@ const G_MOUETTES = {
     }
     function show() {
       if (i >= TOTAL) return c.done(100 * ok / TOTAL - pen, `${ok}/${TOTAL} cartes bien triées` + (pen ? ` · pénalité −${pen} (ancienne règle gardée trop longtemps)` : ''));
-      card = newCard(); cardEl.innerHTML = cardHTML(card); ready = true;
+      card = newCard(); cardEl.innerHTML = cardHTML(card); c.ok(bk.children[target(card, rule)]); ready = true;
     }
     function choose(b, el) {
       if (c.over || !ready) return; ready = false;
