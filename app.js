@@ -117,51 +117,94 @@ window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferr
    ========================================================= */
 
 function bestOf(id) { return Math.max(-1, ...['F', 'N', 'E'].map(l => store.get(recKey(id, l), -1))); }
+/* Description simple de chaque jeu (ce qu'on fait vraiment) */
+const WHAT = {
+  lanterne: 'Touche dès que la lanterne s’allume', bateaux: 'Touche les bateaux, évite les requins',
+  vent: 'Suis la flèche, pas le vent', constellation: 'Retrouve la forme vue un instant',
+  gue: 'Calcul mental : choisis le bon résultat', lucioles: 'Quel côté en a le plus ?',
+  phares: 'Mémorise l’ordre des lumières', collier: 'Trouve le coquillage suivant',
+  recif: 'Repère la même forme tournée', courants: 'Suis les flèches jusqu’à l’île',
+  cabines: 'Énigme : place chaque animal', mouettes: 'Devine la règle de tri secrète',
+  crabes: 'Tape les crabes qui sortent', bulles: 'Trouve les bulles qui font le total',
+  mystere: 'Devine la photo qui se dévoile', vitraux: 'Test de QI : complète la grille',
+  suites: 'Trouve le nombre suivant', boutique: 'Paie le prix exact en euros'
+};
+const NEW_GAMES = ['mystere', 'vitraux', 'suites', 'boutique'];
+const GROUPS = [
+  ['speed', '⚡ Rapidité et réflexes', g => g.cat === 'speed' && !['gue', 'boutique'].includes(g.id)],
+  ['logic', '🧩 Logique et mémoire', g => g.cat === 'logic' && !['bulles', 'suites'].includes(g.id)],
+  ['num', '🔢 Chiffres et calcul', g => ['gue', 'bulles', 'suites', 'boutique'].includes(g.id)]
+];
+function gameRow(g, lvl) {
+  const rec = store.get(recKey(g.id, lvl), null), n = rec == null ? 0 : starsOf(rec);
+  return `<button class="grow" data-id="${g.id}" aria-label="${g.name} : ${WHAT[g.id]}. ${n} étoile${n > 1 ? 's' : ''}">
+    <span class="gr-ic" style="--c:${g.color}">${g.icon}</span>
+    <span class="gr-tx"><b>${g.name}${NEW_GAMES.includes(g.id) ? ' <em class="nw">Nouveau</em>' : ''}</b><small>${WHAT[g.id]}</small></span>
+    <span class="gr-st" aria-hidden="true">${'★'.repeat(n)}<i>${'★'.repeat(3 - n)}</i></span></button>`;
+}
 function home() {
   Clock.reset(); S = null;
-  const first = !store.get('seen', false);
-  const stars = GAMES.map(g => { const b = bestOf(g.id); return b < 0 ? 0 : starsOf(b); });
-  const tot = stars.reduce((a, b) => a + b, 0);
+  const first = !store.get('seen', false), lvl = settings.level;
   const st = streakNow(), daily = store.get('daily', {}), doneToday = daily.d === today();
   const hist = store.get('hist', []), m10 = hist.length ? Math.round(hist.slice(-10).reduce((x, h) => x + h.score, 0) / Math.min(10, hist.length)) : null;
-  const dg = dailyGames();
-  const hello = first ? 'Salut ! Je suis Mèche. Un petit défi chaque jour, et ton archipel s’illumine !'
-    : doneToday ? `Bravo, défi du jour réussi${st.n > 1 ? ` : ${st.n} jours d’affilée` : ''} ! Tente un duel ou le mode turbo.`
-      : st.n ? `Ta série est de ${st.n} jour${st.n > 1 ? 's' : ''} 🔥 Ne la casse pas : le défi du jour t’attend !` : 'Prêt pour le défi du jour ? Cinq épreuves, environ 4 minutes.';
-  app.innerHTML = `<div class="screen home">
+  const stars = GAMES.map(g => { const b = bestOf(g.id); return b < 0 ? 0 : starsOf(b); }), tot = stars.reduce((a, b) => a + b, 0);
+  const myst = GAMES.find(g => g.id === 'mystere');
+  app.innerHTML = `<div class="screen home h2">
    <div class="home-sky" aria-hidden="true">${HOME_ART}</div>
-   <div class="topbar between"><div><div class="wordmark">Mind<b>Sprint</b></div><div class="slogan">Muscle tes méninges en t’amusant !</div></div><button class="iconbtn" id="set" aria-label="Réglages">⚙</button></div>
-   <div class="hello"><div class="bubble">${hello}</div>${MECHE}</div>
-   <div class="home-sheet">${HOME_ISLES}
-   <button class="hero-daily ${doneToday ? 'done' : ''}" id="daily">
-     <span class="hd-top"><span class="hd-title">${doneToday ? 'Défi du jour réussi ✓' : 'Défi du jour'}</span><span class="hd-streak">🔥 ${st.n}</span></span>
-     <span class="hd-games">${dg.map(g => `<span title="${g.name}">${g.icon}</span>`).join('')}</span>
-     <span class="hd-sub">${doneToday ? `Score ${daily.score}/100 · reviens demain pour la suite de ta série` : '5 épreuves · ~4 min · garde ta série en vie'}</span>
-   </button>
-   <div class="tiles">
-     <button class="tile t-duel" id="duel"><span class="ti">🤖</span><b>Duel</b><small>contre Mèche</small></button>
-     <button class="tile t-solo" id="solo"><span class="ti">🧭</span><b>Test express</b><small>8 épreuves</small></button>
-     <button class="tile t-fam" id="fam"><span class="ti">👨‍👩‍👧‍👦</span><b>En famille</b><small>2 à 4 joueurs</small></button>
-     <button class="tile t-train" id="train"><span class="ti">🏝️</span><b>Entraînement</b><small>${GAMES.length} épreuves</small></button>
-     <button class="tile t-turbo" id="turbo"><span class="ti">🚀</span><b>Turbo</b><small>ça accélère</small></button>
-     <button class="tile t-prog" id="prog"><span class="ti">📈</span><b>Mes progrès</b><small>${m10 != null ? 'moyenne ' + m10 : 'graphique'}</small></button>
-   </div>
-   ${hist.length >= 2 ? `<div class="mini-chart">${sparkline(hist.slice(-12).map(h => h.score))}<span>Tes ${Math.min(12, hist.length)} derniers tests</span></div>` : ''}
-   ${deferredInstall ? `<button class="tile wide" id="inst"><span class="ti">📲</span><b>Installer l’app</b><small>même sans connexion</small></button>` : ''}
-   <div class="archi" aria-label="Étoiles gagnées : ${tot} sur ${GAMES.length * 3}">${stars.map(n => `<i class="s${n}"></i>`).join('')}</div>
-   <p class="small foot">Ton archipel : ${tot} étoile${tot > 1 ? 's' : ''} sur ${GAMES.length * 3} · Un jeu pour s’amuser, pas un test scientifique.</p>
+   <header class="hh"><div><div class="wordmark">Mind<b>Sprint</b></div><div class="slogan">Muscle tes méninges en t’amusant !</div></div>
+     <div class="hh-r"><button class="iconbtn" id="help" aria-label="Comment jouer ?">?</button><button class="iconbtn" id="set" aria-label="Réglages">⚙</button></div></header>
+   <div class="hello"><div class="bubble">${first ? 'Salut, moi c’est Mèche ! Choisis un jeu et je t’explique tout avant de commencer.' : st.n ? `Série de ${st.n} jour${st.n > 1 ? 's' : ''} 🔥 ${doneToday ? 'Défi du jour réussi, bravo !' : 'Le défi du jour t’attend.'}` : 'Choisis un jeu ou lance une partie : je t’explique les règles avant chaque épreuve.'}</div>${MECHE}</div>
+   <div class="home-sheet">
+   <section class="hs-play">
+     <button class="play-main" id="solo"><span class="pm-ic">▶</span><span><b>Jouer seul</b><small>8 jeux au hasard · environ 6 min · score sur 100</small></span></button>
+     <button class="play-feat" id="feat" style="--c:${myst.color}"><span class="pf-ic">${myst.icon}</span><span><em class="nw">Nouveau</em><b>${myst.name}</b><small>Une photo se dévoile : devine-la avant les autres !</small></span><span class="pf-go">Jouer</span></button>
+   </section>
+   <section class="hs-sec">
+     <div class="sec-h"><h2>Choisis un jeu</h2><span class="small">${GAMES.length} jeux</span></div>
+     <div class="lvl-pick" role="group" aria-label="Niveau">${Object.entries(LEVELS).map(([k, v]) => `<button class="${k === lvl ? 'on' : ''}" data-l="${k}">${v.name}</button>`).join('')}</div>
+     ${GROUPS.map(([k, t, f]) => `<h3 class="grp">${t}</h3><div class="glist">${GAMES.filter(f).map(g => gameRow(g, lvl)).join('')}</div>`).join('')}
+   </section>
+   <section class="hs-sec">
+     <div class="sec-h"><h2>Autres façons de jouer</h2></div>
+     <div class="modes">
+       <button class="mode m-daily ${doneToday ? 'done' : ''}" id="daily"><span class="md-ic">📅</span><span><b>Défi du jour ${st.n ? `<em class="fire">🔥 ${st.n}</em>` : ''}</b><small>${doneToday ? `Fait aujourd’hui : ${daily.score}/100. Reviens demain !` : '5 jeux, les mêmes pour tout le monde aujourd’hui. Joue chaque jour pour allonger ta série.'}</small></span></button>
+       <button class="mode m-duel" id="duel"><span class="md-ic">🤖</span><span><b>Duel contre Mèche</b><small>Toi contre l’ordinateur sur un jeu de vitesse : le premier qui marque le plus gagne.</small></span></button>
+       <button class="mode m-fam" id="fam"><span class="md-ic">👨‍👩‍👧‍👦</span><span><b>En famille</b><small>2 à 4 joueurs sur le même téléphone, chacun son tour, podium à la fin.</small></span></button>
+       <button class="mode m-turbo" id="turbo"><span class="md-ic">🚀</span><span><b>Mode turbo</b><small>Un jeu qui accélère sans arrêt : tiens le plus longtemps possible.</small></span></button>
+       <button class="mode m-prog" id="prog"><span class="md-ic">📈</span><span><b>Mes progrès</b><small>${m10 != null ? `Ta moyenne : ${m10}/100 · ` : ''}graphique de ton évolution et badges.</small></span></button>
+     </div>
+   </section>
+   ${hist.length >= 2 ? `<div class="mini-chart">${sparkline(hist.slice(-12).map(h => h.score))}<span>Tes ${Math.min(12, hist.length)} dernières parties</span></div>` : ''}
+   ${deferredInstall ? `<button class="mode" id="inst"><span class="md-ic">📲</span><span><b>Installer l’app</b><small>Sur l’écran d’accueil, même sans connexion.</small></span></button>` : ''}
+   <p class="small foot">${tot} étoile${tot > 1 ? 's' : ''} sur ${GAMES.length * 3} · Un jeu pour s’amuser, pas un test scientifique.</p>
    </div>
   </div>`;
   store.set('seen', true);
+  const playOne = id => { const g = GAMES.find(x => x.id === id); S = { mode: 'train', level: settings.level, seed: newSeed(), games: [g], idx: 0, scores: {}, details: {} }; intro(); };
+  $$('.grow').forEach(b => b.addEventListener('click', () => playOne(b.dataset.id)));
+  $$('.lvl-pick button').forEach(b => b.addEventListener('click', () => { settings.level = b.dataset.l; saveSettings(); const y = window.scrollY; home(); window.scrollTo(0, y); }));
+  on('#feat', 'click', () => playOne('mystere'));
+  on('#help', 'click', helpSheet);
   on('#set', 'click', settingsSheet);
   on('#daily', 'click', startDaily);
   on('#solo', 'click', () => levelSheet(level => startExpress(level)));
   on('#duel', 'click', duelSetup);
   on('#fam', 'click', () => familySetup());
-  on('#train', 'click', () => trainGrid());
   on('#turbo', 'click', turboPick);
   on('#prog', 'click', progress);
   on('#inst', 'click', async () => { if (!deferredInstall) return; deferredInstall.prompt(); try { await deferredInstall.userChoice; } catch (e) { } deferredInstall = null; home(); });
+  if (first) setTimeout(helpSheet, 400);
+}
+function helpSheet() {
+  sheet(`<h2>Comment jouer ?</h2>
+    <ol class="howto">
+      <li><b>Pour jouer seul :</b> touche <em>Jouer seul</em> (8 jeux enchaînés, score final sur 100) ou touche directement un jeu de la liste.</li>
+      <li><b>Avant chaque jeu,</b> Mèche explique la règle avec un exemple. Tu peux faire un <em>essai sans chrono</em> pour comprendre.</li>
+      <li><b>Le niveau</b> se choisit en haut de la liste : Échauffement (enfants), En forme, Costaud.</li>
+      <li><b>Chaque jeu</b> donne un score sur 100 et jusqu’à 3 étoiles. Bats ton record !</li>
+      <li><b>Chaque jour,</b> le défi du jour garde ta série 🔥 en vie. Tes progrès et ta moyenne sont dans <em>Mes progrès</em>.</li>
+    </ol>
+    <button class="btn" id="ok">Compris !</button>`, (root, close) => { on('#ok', 'click', close, root); root.addEventListener('click', e => { if (e.target === root) close(); }); });
 }
 
 function levelSheet(go) {
@@ -290,7 +333,7 @@ function confirmLeave(inGame) {
     on('#cont', 'click', () => { close(); Clock.paused = false; }, root);
     on('#endp', 'click', () => { close(); Clock.paused = false; CUR.over = true; practiceDone(g); }, root);
     on('#skip', 'click', () => { close(); Clock.paused = false; CUR.done(0, 'Épreuve passée'); }, root);
-    on('#stop', 'click', () => { close(); const back = S && S.mode === 'train' ? () => trainGrid(S.filter) : home; Clock.reset(); back(); }, root);
+    on('#stop', 'click', () => { close(); const back = home; Clock.reset(); back(); }, root);
   });
 }
 document.addEventListener('visibilitychange', () => {
@@ -420,7 +463,7 @@ function gameEnd(g, score, detail) {
   if (S.mode === 'train' || S.mode === 'turbo') {
     acts.innerHTML = `<button class="btn go" id="again">Rejouer</button><button class="btn secondary" id="other">Autres épreuves</button>`;
     on('#again', 'click', () => { S.seed = newSeed(); S.scores = {}; intro(); });
-    on('#other', 'click', () => trainGrid(S.filter));
+    on('#other', 'click', home);
   } else if (S.mode === 'solo' || S.mode === 'daily') {
     acts.innerHTML = `<button class="btn go" id="nx">${last ? 'Voir mon résultat' : 'Épreuve suivante'}</button>`;
     on('#nx', 'click', () => { if (last) soloFinal(); else { S.idx++; intro(); } });

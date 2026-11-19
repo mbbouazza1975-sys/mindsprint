@@ -1047,7 +1047,7 @@ const MYST = {
 const MYST_CAT = { animaux: 'un animal', objets: 'un objet', nourriture: 'quelque chose à manger', vehicules: 'un véhicule', personnages: 'un personnage', chiffres: 'un chiffre' };
 
 const G_MYSTERE = {
-  id: 'mystere', name: 'L’image mystère', cat: 'speed', color: '#9333EA', fg: '#fff', icon: '🖼️',
+  id: 'mystere', name: 'La photo mystère', cat: 'speed', color: '#9333EA', fg: '#fff', icon: '🖼️',
   rule: () => 'Une image se dévoile petit à petit sous des carreaux. Devine le plus vite possible ce qu’elle représente parmi les 4 réponses.',
   info: () => '8 images',
   run(c) {
