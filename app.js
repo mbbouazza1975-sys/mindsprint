@@ -4,7 +4,7 @@
    ========================================================= */
 
 const app = $('#app');
-const LEVELS = { F: { name: 'Échauffement', sub: 'Pour démarrer tranquille, dès 8 ans', g: 1 }, N: { name: 'En forme', sub: 'Ça va plus vite, ça réfléchit plus', g: 2 }, E: { name: 'Costaud', sub: 'Pour ceux qui aiment transpirer des neurones', g: 3 } };
+const LEVELS = { F: { name: 'Échauffement', sub: 'Pour démarrer en douceur', g: 1 }, N: { name: 'En forme', sub: 'Ça va plus vite, ça réfléchit plus', g: 2 }, E: { name: 'Costaud', sub: 'Pour ceux qui aiment transpirer des neurones', g: 3 } };
 const PLAYER_STYLE = [
   { color: '#F4B400', shape: 0 }, { color: '#2EC4B6', shape: 2 }, { color: '#FF8FB1', shape: 3 }, { color: '#1F5FE0', shape: 1 }
 ];
@@ -16,11 +16,23 @@ const store = {
   set(k, v) { try { localStorage.setItem('pige:' + k, JSON.stringify(v)); } catch (e) { } },
   clear() { try { Object.keys(localStorage).filter(k => k.startsWith('pige:')).forEach(k => localStorage.removeItem(k)); } catch (e) { } }
 };
-const settings = Object.assign({ sound: true, haptic: true, moreTime: false, theme: 'auto', level: 'F' }, store.get('settings', {}));
+const settings = Object.assign({ sound: true, haptic: true, moreTime: false, theme: 'auto', level: 'F', profile: null, chrono: true, autoLevel: true }, store.get('settings', {}));
+/* Profils de joueurs : vitesse du jeu (rate < 1 = plus lent), niveaux permis, gros caractères, chrono par défaut */
+const PROFILES = {
+  junior: { name: 'Junior', icon: '🧒', sub: '8 ans et plus · jeux faciles, rythme doux', rate: 0.85, min: 'F', max: 'N', start: 'F', big: false, chrono: true },
+  classic: { name: 'Classique', icon: '🙂', sub: 'Ado et adulte · le rythme normal', rate: 1, min: 'F', max: 'E', start: 'N', big: false, chrono: true },
+  zen: { name: 'Sérénité', icon: '🌿', sub: 'Seniors · plus gros, plus lent, sans chrono', rate: 0.65, min: 'F', max: 'N', start: 'F', big: true, chrono: false },
+  muscle: { name: 'Muscle', icon: '💪', sub: 'Pour les cerveaux affûtés · plus dur, plus rapide', rate: 1.15, min: 'N', max: 'E', start: 'E', big: false, chrono: true }
+};
+const LV_ORDER = ['F', 'N', 'E'];
+const prof = () => PROFILES[settings.profile] || PROFILES.classic;
+function clampLevel(l, p = prof()) { const i = LV_ORDER.indexOf(l), a = LV_ORDER.indexOf(p.min), b = LV_ORDER.indexOf(p.max); return LV_ORDER[Math.max(a, Math.min(b, i < 0 ? a : i))]; }
+function setProfile(k) { const p = PROFILES[k]; settings.profile = k; settings.level = p.start; settings.chrono = p.chrono; saveSettings(); }
 function saveSettings() { store.set('settings', settings); applyTheme(); }
 function applyTheme() {
   const root = document.documentElement;
   root.dataset.theme = settings.theme;
+  root.dataset.big = (PROFILES[settings.profile] || {}).big ? '1' : '0';
   const dark = settings.theme === 'dark' || (settings.theme === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
   root.dataset.mode = dark ? 'dark' : 'light';
   root.style.colorScheme = dark ? 'dark' : 'light';
@@ -51,7 +63,7 @@ const Clock = {
     const g = this.gen;
     const loop = ts => {
       if (g !== this.gen) return;
-      if (this.last != null && !this.paused) this.t += Math.min(100, ts - this.last);
+      if (this.last != null && !this.paused) this.t += Math.min(100, ts - this.last) * (this.rate || 1);
       this.last = ts;
       if (!this.paused) {
         if (this.tasks.length) {
@@ -126,7 +138,7 @@ const WHAT = {
   recif: 'Repère la même forme tournée', courants: 'Suis les flèches jusqu’à l’île',
   cabines: 'Énigme : place chaque animal', mouettes: 'Devine la règle de tri secrète',
   crabes: 'Tape les crabes qui sortent', bulles: 'Trouve les bulles qui font le total',
-  mystere: 'Devine la photo qui se dévoile', vitraux: 'Test de QI : complète la grille',
+  mystere: 'Devine la photo qui se dévoile', vitraux: 'Casse-tête : complète la grille',
   suites: 'Trouve le nombre suivant', boutique: 'Paie le prix exact en euros'
 };
 const NEW_GAMES = ['mystere', 'vitraux', 'suites', 'boutique'];
@@ -142,8 +154,46 @@ function gameRow(g, lvl) {
     <span class="gr-tx"><b>${g.name}${NEW_GAMES.includes(g.id) ? ' <em class="nw">Nouveau</em>' : ''}</b><small>${WHAT[g.id]}</small></span>
     <span class="gr-st" aria-hidden="true">${'★'.repeat(n)}<i>${'★'.repeat(3 - n)}</i></span></button>`;
 }
+/* ---------- Niveau qui évolue avec les résultats du dernier jour joué ---------- */
+function autoAdjust() {
+  if (!settings.autoLevel || !settings.profile) return null;
+  const t = today(); if (store.get('adjDay', null) === t) return null;
+  store.set('adjDay', t);
+  const dl = store.get('dlog', {}), days = Object.keys(dl).filter(d => d < t).sort();
+  if (!days.length) return null;
+  const last = dl[days[days.length - 1]]; if (!last || last.n < 2) return null;
+  const avg = Math.round(last.s / last.n), cur = settings.level, i = LV_ORDER.indexOf(cur);
+  let nl = cur;
+  if (avg >= 78) nl = clampLevel(LV_ORDER[Math.min(2, i + 1)]);
+  else if (avg < 42) nl = clampLevel(LV_ORDER[Math.max(0, i - 1)]);
+  if (nl === cur) return { same: true, avg };
+  settings.level = nl; saveSettings();
+  return { up: LV_ORDER.indexOf(nl) > i, avg, nl };
+}
+function profileSheet(first) {
+  sheet(`<h2>${first ? 'Bienvenue ! Qui joue ?' : 'Ton profil de joueur'}</h2>
+    <p class="small muted" style="margin:-4px 0 12px">Les jeux s’adaptent : vitesse, difficulté, taille du texte et chrono. Tu pourras changer plus tard dans les réglages ⚙.</p>
+    <div class="profs">${Object.entries(PROFILES).map(([k, p]) => `<button class="prof ${settings.profile === k ? 'on' : ''}" data-p="${k}" aria-pressed="${settings.profile === k}"><span class="pi">${p.icon}</span><span><b>${p.name}</b><small>${p.sub}</small></span></button>`).join('')}</div>`,
+    (root, close) => { $$('.prof', root).forEach(b => b.addEventListener('click', () => { setProfile(b.dataset.p); close(); home(); })); });
+}
+function chronoSwitch(id = 'chr') { return `<div class="toggle chrono-t"><span><b>⏱ Contre la montre</b><br><span class="small muted">${settings.chrono ? 'Oui : un chrono défile, il faut faire vite' : 'Non : pas de chrono affiché, joue à ton rythme'}</span></span><button class="switch ${settings.chrono ? 'on' : ''}" id="${id}" role="switch" aria-checked="${settings.chrono}" aria-label="Contre la montre"></button></div>`; }
+function bindChrono(root, after) { on('#chr', 'click', e => { settings.chrono = !settings.chrono; saveSettings(); after ? after() : null; }, root); }
+function readySheet(title, sub, go) {
+  const render = () => `<h2>${title}</h2><p class="small muted" style="margin:-4px 0 12px">${sub}</p>
+    <div class="ready-row"><span>${prof().icon} Profil <b>${prof().name}</b></span><span>${gauge(LEVELS[settings.level].g)} <b>${LEVELS[settings.level].name}</b></span></div>
+    ${chronoSwitch()}
+    <button class="btn go" id="go" style="margin-top:16px">C’est parti</button><button class="btn ghost" id="cancel">Annuler</button>`;
+  sheet(render(), (root, close) => {
+    const bind = () => { bindChrono(root, () => { root.querySelector('.sheet').innerHTML = render(); bind(); }); on('#go', 'click', () => { close(); go(settings.level); }, root); on('#cancel', 'click', close, root); };
+    bind(); root.addEventListener('click', e => { if (e.target === root) close(); });
+  });
+}
+
 function home() {
   Clock.reset(); S = null;
+  if (!settings.profile) { const seen = store.get('seen', false); app.innerHTML = `<div class="screen home h2"><div class="home-sky" aria-hidden="true">${HOME_ART}</div><header class="hh"><div><div class="wordmark">Mind<b>Sprint</b></div><div class="slogan">Muscle tes méninges en t’amusant !</div></div></header></div>`; if (seen) { settings.profile = 'classic'; saveSettings(); } else { setTimeout(() => profileSheet(true), 200); return; } }
+  const adj = autoAdjust();
+  settings.level = clampLevel(settings.level);
   const first = !store.get('seen', false), lvl = settings.level;
   const st = streakNow(), daily = store.get('daily', {}), doneToday = daily.d === today();
   const hist = store.get('hist', []), m10 = hist.length ? Math.round(hist.slice(-10).reduce((x, h) => x + h.score, 0) / Math.min(10, hist.length)) : null;
@@ -151,23 +201,24 @@ function home() {
   const myst = GAMES.find(g => g.id === 'mystere');
   app.innerHTML = `<div class="screen home h2">
    <div class="home-sky" aria-hidden="true">${HOME_ART}</div>
-   <header class="hh"><div><div class="wordmark">Mind<b>Sprint</b></div><div class="slogan">Muscle tes méninges en t’amusant !</div></div>
+   <header class="hh"><div><div class="wordmark">Mind<b>Sprint</b></div><div class="slogan">Muscle tes méninges en t’amusant !</div><button class="prof-chip" id="pchip" aria-label="Profil : ${prof().name}. Changer">${prof().icon} ${prof().name} <span class="pc-ch">· changer</span></button></div>
      <div class="hh-r"><button class="iconbtn" id="help" aria-label="Comment jouer ?">?</button><button class="iconbtn" id="set" aria-label="Réglages">⚙</button></div></header>
-   <div class="hello"><div class="bubble">${first ? 'Salut, moi c’est Mèche ! Choisis un jeu et je t’explique tout avant de commencer.' : st.n ? `Série de ${st.n} jour${st.n > 1 ? 's' : ''} 🔥 ${doneToday ? 'Défi du jour réussi, bravo !' : 'Le défi du jour t’attend.'}` : 'Choisis un jeu ou lance une partie : je t’explique les règles avant chaque épreuve.'}</div>${MECHE}</div>
+   <div class="hello"><div class="bubble">${adj && !adj.same ? `Ta dernière journée de jeu : ${adj.avg}/100 de moyenne, ${adj.up ? 'je monte' : 'je baisse'} ton niveau à « ${LEVELS[adj.nl].name} » ${adj.up ? '💪' : '🙂'}` : first ? 'Salut, moi c’est Mèche ! Choisis un jeu et je t’explique tout avant de commencer.' : st.n ? `Série de ${st.n} jour${st.n > 1 ? 's' : ''} 🔥 ${doneToday ? 'Défi du jour réussi, bravo !' : 'Le défi du jour t’attend.'}` : 'Choisis un jeu ou lance une partie : je t’explique les règles avant chaque épreuve.'}</div>${MECHE}</div>
    <div class="home-sheet">
    <section class="hs-play">
-     <button class="play-main" id="solo"><span class="pm-ic">▶</span><span><b>Jouer seul</b><small>8 jeux au hasard · environ 6 min · score sur 100</small></span></button>
+     <button class="play-main" id="solo"><span class="pm-ic">▶</span><span><b>Jouer seul</b><small>8 jeux au hasard · score sur 100 · ${settings.chrono ? '⏱ avec chrono' : '🌿 sans chrono'}</small></span></button>
+<button class="mode m-daily ${doneToday ? 'done' : ''}" id="daily"><span class="md-ic">📅</span><span><b>Défi du jour ${st.n ? `<em class="fire">🔥 ${st.n}</em>` : ''}</b><small>${doneToday ? `Fait aujourd’hui : ${daily.score}/100. Tu peux le rejouer pour t’entraîner (ta série ne change pas).` : '5 jeux, les mêmes pour tout le monde aujourd’hui. Joue chaque jour pour allonger ta série.'}</small></span></button>
      <button class="play-feat" id="feat" style="--c:${myst.color}"><span class="pf-ic">${myst.icon}</span><span><em class="nw">Nouveau</em><b>${myst.name}</b><small>Une photo se dévoile : devine-la avant les autres !</small></span><span class="pf-go">Jouer</span></button>
    </section>
    <section class="hs-sec">
      <div class="sec-h"><h2>Choisis un jeu</h2><span class="small">${GAMES.length} jeux</span></div>
-     <div class="lvl-pick" role="group" aria-label="Niveau">${Object.entries(LEVELS).map(([k, v]) => `<button class="${k === lvl ? 'on' : ''}" data-l="${k}">${v.name}</button>`).join('')}</div>
+     <div class="lvl-pick" role="group" aria-label="Niveau">${Object.entries(LEVELS).map(([k, v]) => `<button class="${k === lvl ? 'on' : ''}" data-l="${k}" aria-pressed="${k === lvl}" ${clampLevel(k) !== k ? 'disabled title="Pas dans ce profil"' : ''}>${v.name}</button>`).join('')}</div>
+     <div class="lvl-note"><p class="small">${settings.autoLevel ? 'Le niveau s’ajuste chaque jour selon tes résultats.' : 'Niveau fixe (réglages ⚙).'}</p>${chronoSwitch('chr')}</div>
      ${GROUPS.map(([k, t, f]) => `<h3 class="grp">${t}</h3><div class="glist">${GAMES.filter(f).map(g => gameRow(g, lvl)).join('')}</div>`).join('')}
    </section>
    <section class="hs-sec">
      <div class="sec-h"><h2>Autres façons de jouer</h2></div>
      <div class="modes">
-       <button class="mode m-daily ${doneToday ? 'done' : ''}" id="daily"><span class="md-ic">📅</span><span><b>Défi du jour ${st.n ? `<em class="fire">🔥 ${st.n}</em>` : ''}</b><small>${doneToday ? `Fait aujourd’hui : ${daily.score}/100. Reviens demain !` : '5 jeux, les mêmes pour tout le monde aujourd’hui. Joue chaque jour pour allonger ta série.'}</small></span></button>
        <button class="mode m-duel" id="duel"><span class="md-ic">🤖</span><span><b>Duel contre Mèche</b><small>Toi contre l’ordinateur sur un jeu de vitesse : le premier qui marque le plus gagne.</small></span></button>
        <button class="mode m-fam" id="fam"><span class="md-ic">👨‍👩‍👧‍👦</span><span><b>En famille</b><small>2 à 4 joueurs sur le même téléphone, chacun son tour, podium à la fin.</small></span></button>
        <button class="mode m-turbo" id="turbo"><span class="md-ic">🚀</span><span><b>Mode turbo</b><small>Un jeu qui accélère sans arrêt : tiens le plus longtemps possible.</small></span></button>
@@ -187,7 +238,9 @@ function home() {
   on('#help', 'click', helpSheet);
   on('#set', 'click', settingsSheet);
   on('#daily', 'click', startDaily);
-  on('#solo', 'click', () => levelSheet(level => startExpress(level)));
+  on('#solo', 'click', () => readySheet('Jouer seul', '8 jeux tirés au hasard, adaptés à ton profil.', level => startExpress(level)));
+  on('#pchip', 'click', () => profileSheet(false));
+  on('#chr', 'click', () => { settings.chrono = !settings.chrono; saveSettings(); const y = window.scrollY; home(); window.scrollTo(0, y); });
   on('#duel', 'click', duelSetup);
   on('#fam', 'click', () => familySetup());
   on('#turbo', 'click', turboPick);
@@ -229,7 +282,10 @@ function settingsSheet() {
     <h2>Réglages</h2>
     ${sw('sound', 'Sons', 'Petits bips de réussite et d’erreur')}
     ${sw('haptic', 'Vibrations', 'Sur les téléphones qui le permettent')}
-    ${sw('moreTime', 'Plus de temps', '+50 % sur les chronos, pratique pour les plus jeunes')}
+    <div class="toggle"><span><b>Profil de joueur</b><br><span class="small muted">${prof().icon} ${prof().name} · ${prof().sub}</span></span><button class="chip" id="chp">Changer</button></div>
+    ${sw('chrono', 'Contre la montre', 'Sinon : pas de chrono affiché, tu joues à ton rythme')}
+    ${sw('autoLevel', 'Niveau automatique', 'Monte ou baisse chaque jour selon tes résultats de la veille')}
+    ${sw('moreTime', 'Encore plus de temps', '+50 % sur tous les temps d’affichage et de réponse')}
     <div class="toggle"><b>Thème</b><span class="chips" id="th">${[['auto', 'Auto'], ['light', 'Clair'], ['dark', 'Sombre']].map(([k, l]) => `<button class="chip ${settings.theme === k ? 'on' : ''}" data-t="${k}">${l}</button>`).join('')}</span></div>
     <p class="small muted" style="margin-top:14px">${iOS ? 'Pour installer l’app sur iPhone : touche « Partager », puis « Sur l’écran d’accueil ».' : 'Pour installer l’app : menu du navigateur, puis « Installer l’application » ou « Ajouter à l’écran d’accueil ».'}</p>
     <button class="btn secondary" id="wipe" style="margin-top:14px">Tout effacer (records, progrès, badges)</button>
@@ -242,6 +298,7 @@ function settingsSheet() {
       if (b.dataset.armed) { const keep = { ...settings }; store.clear(); store.set('settings', keep); store.set('seen', true); b.textContent = 'Tout est effacé'; b.disabled = true; }
       else { b.dataset.armed = '1'; b.textContent = 'Sûr ? Touche encore pour confirmer'; }
     }, root);
+    on('#chp', 'click', () => { close(); profileSheet(false); }, root);
     on('#ok', 'click', () => { close(); home(); }, root);
     root.addEventListener('click', e => { if (e.target === root) { close(); home(); } });
   });
@@ -278,7 +335,7 @@ const tutoKey = g => `tuto:${profileKey()}:${g.id}:${S.level}`;
 function rulesHTML(g, lvl) { return `<ul class="rules">${tutoRules(g.id, lvl).map(r => `<li>${r}</li>`).join('')}</ul>`; }
 function exampleHTML(g, lvl) { const T = TUTOS[g.id]; return `<div class="example"><div class="ex-title">Exemple</div><div class="ex-body">${T.ex(lvl)}</div><p class="ex-leg">${T.legend(lvl)}</p></div>`; }
 function intro() {
-  Clock.reset();
+  Clock.reset(); window.scrollTo(0, 0);
   const g = S.games[S.idx], lvl = S.level, pl = currentPlayer(), T = TUTOS[g.id];
   const rec = !['family', 'duel', 'turbo'].includes(S.mode) ? store.get(recKey(g.id, lvl), null) : S.mode === 'turbo' ? store.get('turbo:' + g.id, null) : null;
   const step = S.games.length > 1 ? `Épreuve ${S.idx + 1} sur ${S.games.length}` : '';
@@ -289,6 +346,7 @@ function intro() {
     <div class="coach">${MECHE.replace('data-mood="neutral"', 'data-mood="happy"')}<div class="bubble">${rulesHTML(g, lvl)}</div></div>
     ${exampleHTML(g, lvl)}
     <div class="chips" style="margin-top:10px">${catPill(g.cat)}<span class="pill">⏱ ${g.info(lvl)}</span><span class="pill">${gauge(LEVELS[lvl].g)} ${LEVELS[lvl].name}</span>${rec != null ? `<span class="pill">🏆 ${rec}</span>` : ''}</div>
+    ${!['duel', 'turbo', 'family'].includes(S.mode) ? chronoSwitch() : ''}
     <div class="spacer"></div>
     ${done ? `<button class="btn go" id="go">On y va !</button><button class="btn secondary" id="try">Refaire l’essai</button>`
       : `<button class="btn go" id="try">Essayer sans chrono</button><button class="btn ghost light" id="go">Passer l’essai</button>`}
@@ -296,6 +354,7 @@ function intro() {
   on('#x', 'click', () => confirmLeave(false));
   on('#go', 'click', () => { SFX('tap'); play(g, false); });
   on('#try', 'click', () => { SFX('tap'); play(g, true); });
+  on('#chr', 'click', () => { settings.chrono = !settings.chrono; saveSettings(); const y = window.scrollY; intro(); window.scrollTo(0, y); });
 }
 function practiceRetry(g) {
   Clock.reset(); SFX('ko');
@@ -352,6 +411,10 @@ function play(g, practice) {
   window.scrollTo(0, 0);
   const stage = $('#stage'), fill = $('#fill'), secs = $('#secs'), fuse = $('#fuse'), sc = $('#sc'), tip = $('#tip'), T = TUTOS[g.id];
   on('#x', 'click', () => confirmLeave(true));
+  const noChrono = !practice && !settings.chrono && !['duel', 'turbo', 'family'].includes(S.mode);
+  Clock.rate = S.mode === 'duel' ? 1 : prof().rate * (S.mode === 'family' ? 1 : 1);
+  if (S.mode === 'family') { const pl = currentPlayer(); Clock.rate = (PROFILES[pl && pl.profile] || PROFILES.classic).rate; }
+  if (noChrono) fuse.classList.add('nochrono');
   Clock.start();
   const rng = makeRng(hashStr(S.seed + ':' + g.id + ':' + S.level + (practice ? ':essai' : '')));
   let goods = 0, lastInput = 0, tipT = null;
@@ -372,7 +435,7 @@ function play(g, practice) {
   const turbo = S.mode === 'turbo' && !practice;
   if (turbo) $('.hud').insertAdjacentHTML('afterend', '<div class="duelbar">🚀 Turbo : ça accélère !</div>');
   const c = CUR = {
-    stage, level: S.level, rng, over: false, practice: !!practice,
+    stage, level: S.level, rng, over: false, practice: !!practice, rate: Clock.rate || 1,
     L: o => o[S.level],
     tm: ms => ms * (settings.moreTime ? 1.5 : 1) * (practice ? 1.6 : 1) * (turbo ? Math.max(0.55, 1 - Math.max(0, Clock.t - 2100) / 60000 * 0.9) : 1),
     later: (fn, ms) => Clock.later(fn, ms),
@@ -380,11 +443,12 @@ function play(g, practice) {
     now: () => Clock.t,
     beep: f => { if (settings.sound) beep(f, .1); },
     ok: el => { $$('[data-ok]', stage).forEach(e => { if (e !== el) { delete e.dataset.ok; e.classList.remove('hint'); } }); if (el) { el.dataset.ok = '1'; lastInput = Math.max(lastInput, Clock.t - 1500); if (practice && (g.id === 'lanterne' || g.id === 'bateaux')) { el.classList.add('hint'); say(g.id === 'lanterne' ? 'Elle brille : touche !' : 'Un bateau : touche l’eau !', 1200); } } },
-    score: v => { sc.textContent = v; fx($('#buoy'), 'bump'); const n = parseInt(v, 10); if (S.mode === 'duel' && !isNaN(n)) { S.duelGood = n; duelSync(); } },
+    score: v => { sc.textContent = v; fx($('#buoy'), 'bump'); const n = parseInt(v, 10);  },
     progress: r => { fuse.classList.remove('urgent'); fill.style.width = (Math.max(0, Math.min(1, r)) * 100) + '%'; secs.textContent = ''; },
     timer(sec, onEnd) {
-      if (practice) return () => { };
+      if (practice || (noChrono && sec < 30)) return () => { };
       const total = c.tm(sec * 1000), st = Clock.t; let fired = false, lastS = null;
+      if (noChrono) { const off2 = Clock.tick(t => { if (!fired && t - st >= total) { fired = true; off2(); onEnd(); } }); return () => { if (!fired) { fired = true; off2(); } }; }
       fuse.classList.remove('urgent');
       const off = Clock.tick(t => {
         if (fired) return;
@@ -397,6 +461,7 @@ function play(g, practice) {
       return () => { if (!fired) { fired = true; off(); } };
     },
     good(el, word) {
+      if (S.mode === 'duel' && !practice) { S.duelGood = (S.duelGood || 0) + 1; duelSync(); }
       haptic(15); SFX('ok'); mood($('#hm'), 'happy', 700);
       if (el) { fx(el, 'ok-fx'); burst(el, true); }
       if (word && el) { const r = el.getBoundingClientRect(); floatWord(r.left + r.width / 2, r.top); }
@@ -435,6 +500,7 @@ function phrase(score) {
 function gameEnd(g, score, detail) {
   S.scores[g.id] = score; S.details[g.id] = detail;
   if (S.mode === 'duel') return duelEnd(g, score, detail);
+  if (!['family', 'duel', 'turbo'].includes(S.mode)) { const dl = store.get('dlog', {}); const k = today(); dl[k] = dl[k] || { s: 0, n: 0, lv: S.level }; dl[k].s += score; dl[k].n++; dl[k].lv = S.level; const keys = Object.keys(dl).sort().slice(-30); store.set('dlog', Object.fromEntries(keys.map(x => [x, dl[x]]))); }
   if (S.mode !== 'family') { const gh = store.get('gh', {}); (gh[g.id] = gh[g.id] || []).push(score); gh[g.id] = gh[g.id].slice(-30); store.set('gh', gh); }
   if (S.mode === 'turbo') { const pv = store.get('turbo:' + g.id, null); if (pv == null || score > pv) store.set('turbo:' + g.id, score); if (score >= 70) award('turbo70'); }
   let prev = null, rec = false;
@@ -496,7 +562,7 @@ function soloFinal() {
   const md = medalOf(total), nxt = total < 40 ? [40, 'le bronze'] : total < 60 ? [60, 'l’argent'] : total < 80 ? [80, 'l’or'] : null;
   const nextLvl = S.level === 'F' && total >= 70 ? ' Essaie « En forme » la prochaine fois ?' : S.level === 'N' && total >= 70 ? ' Prêt pour « Costaud » ?' : '';
   app.innerHTML = `<div class="screen play result">${scene('constellation')}
-    <div class="card">${md ? medalSVG(md) : MECHE}<p class="muted" style="margin:0">${S.mode === 'daily' ? 'Défi du jour' + (S.replay ? ' (rejoué, hors série)' : '') : 'Test express'} · ${LEVELS[S.level].name}</p>
+    <div class="card">${md ? medalSVG(md) : MECHE}<p class="muted" style="margin:0">${S.mode === 'daily' ? 'Défi du jour' + (S.replay ? ' (rejoué, hors série)' : '') : 'Jouer seul'} · ${LEVELS[S.level].name}</p>
     <div class="bigscore" id="tot">0<small> / 100</small></div>
     <p style="font-weight:700;margin:0">${md ? MEDALS[md][2] : 'Pas encore de médaille'}${rec && prev != null ? ' · 🏆 Nouveau record !' : ''}</p>
     ${dailyMsg ? `<p class="streakline">${dailyMsg}</p>` : ''}
@@ -528,11 +594,12 @@ function familySetup(prevNames) {
   Clock.reset();
   const saved = prevNames || store.get('famNames', ['', '']);
   let names = saved.length >= 2 ? saved.slice(0, 4) : ['', ''];
-  let format = store.get('famFormat', 'quick'), lvl = settings.level;
+  let format = store.get('famFormat', 'quick'), lvl = settings.level, profs = store.get('famProfiles', []);
+  const PK = Object.keys(PROFILES);
   function render() {
     screen(`
       <div class="topbar"><button class="iconbtn" id="back" aria-label="Retour">←</button><h2 style="flex:1">Qui joue ?</h2></div>
-      <div id="pl">${names.map((n, i) => `<div class="pinput">${pawn(i)}<input maxlength="16" autocapitalize="words" autocomplete="off" placeholder="Joueur ${i + 1}" value="${esc(n)}" data-i="${i}" aria-label="Prénom du joueur ${i + 1}">${i >= 2 ? `<button class="iconbtn" data-rm="${i}" aria-label="Retirer">✕</button>` : ''}</div>`).join('')}</div>
+      <div id="pl">${names.map((n, i) => `<div class="pinput">${pawn(i)}<input maxlength="16" autocapitalize="words" autocomplete="off" placeholder="Joueur ${i + 1}" value="${esc(n)}" data-i="${i}" aria-label="Prénom du joueur ${i + 1}"><button class="pprof" data-pp="${i}" aria-label="Profil de ${esc(n) || 'ce joueur'} : ${PROFILES[profs[i] || 'classic'].name}. Toucher pour changer">${PROFILES[profs[i] || 'classic'].icon}<small>${PROFILES[profs[i] || 'classic'].name}</small></button>${i >= 2 ? `<button class="iconbtn" data-rm="${i}" aria-label="Retirer">✕</button>` : ''}</div>`).join('')}</div>
       ${names.length < 4 ? `<button class="btn ghost" id="add">+ Ajouter un joueur</button>` : ''}
       <h3 style="margin-top:16px">Format</h3>
       <div class="chips" id="fm" style="margin-top:8px">
@@ -541,14 +608,15 @@ function familySetup(prevNames) {
       </div>
       <h3 style="margin-top:16px">Niveau</h3>
       <div class="chips" id="lv" style="margin-top:8px">${Object.entries(LEVELS).map(([k, v]) => `<button class="chip ${k === lvl ? 'on' : ''}" data-l="${k}">${v.name}</button>`).join('')}</div>
-      <p class="small muted" style="margin-top:10px">Tout le monde joue les mêmes épreuves, avec les mêmes énoncés.</p>
+      <p class="small muted" style="margin-top:10px">Tout le monde joue les mêmes épreuves, avec les mêmes énoncés. Touche l’icône à côté d’un prénom pour choisir son profil : 🧒 Junior et 🌿 Sérénité jouent plus lentement, 💪 Muscle plus vite. Ça équilibre la partie entre petits et grands.</p>
       <div class="spacer"></div>
       <p class="small muted" id="hint" style="text-align:center;margin-top:16px"></p>
       <button class="btn" id="go">On commence</button>
     `);
     const sync = () => { names = $$('#pl input').map(i => i.value); const ok = names.filter(n => n.trim()).length >= 2; $('#go').disabled = !ok; $('#hint').textContent = ok ? '' : 'Il faut au moins deux joueurs.'; };
     $$('#pl input').forEach(i => i.addEventListener('input', sync));
-    $$('[data-rm]').forEach(b => b.addEventListener('click', () => { sync(); names.splice(+b.dataset.rm, 1); render(); }));
+    $$('[data-pp]').forEach(b => b.addEventListener('click', () => { sync(); const i = +b.dataset.pp, cur = profs[i] || 'classic'; profs[i] = PK[(PK.indexOf(cur) + 1) % PK.length]; store.set('famProfiles', profs); render(); }));
+    $$('[data-rm]').forEach(b => b.addEventListener('click', () => { sync(); names.splice(+b.dataset.rm, 1); profs.splice(+b.dataset.rm, 1); store.set('famProfiles', profs); render(); }));
     on('#add', 'click', () => { sync(); names.push(''); render(); $$('#pl input').pop().focus(); });
     $$('#fm .chip').forEach(b => b.addEventListener('click', () => { sync(); format = b.dataset.f; render(); }));
     $$('#lv .chip').forEach(b => b.addEventListener('click', () => { sync(); lvl = b.dataset.l; render(); }));
@@ -558,7 +626,7 @@ function familySetup(prevNames) {
       const list = names.map((n, i) => ({ name: n.trim(), i })).filter(p => p.name);
       if (list.length < 2) return;
       store.set('famNames', names); store.set('famFormat', format); settings.level = lvl; saveSettings();
-      startFamily(list.map((p, k) => ({ name: p.name, i: k, scores: {}, total: 0 })), format, lvl);
+      startFamily(list.map((p, k) => ({ name: p.name, i: k, profile: profs[p.i] || 'classic', scores: {}, total: 0 })), format, lvl);
     });
     sync();
   }
@@ -591,18 +659,10 @@ function handover() {
       ${S.p > 0 ? '<p class="small">Les scores des autres restent secrets jusqu’au podium.</p>' : ''}
       <p class="small">${S.games.length} épreuve${S.games.length > 1 ? 's' : ''} · ${LEVELS[S.level].name}</p>
     </div>
-    <button class="btn hold" id="hold"><span class="ring" id="ring"></span><span style="position:relative">C’est moi, je commence</span></button>
-    <p class="small muted" style="text-align:center;margin:6px 0 0">Garde le doigt appuyé un instant.</p>
+    <button class="btn go" id="hold">C’est moi, je commence</button>
   `);
   on('#x', 'click', () => confirmLeave(false));
-  const hold = $('#hold'), ring = $('#ring');
-  let t0 = null, raf = null;
-  const reset = () => { t0 = null; if (raf) cancelAnimationFrame(raf); ring.style.width = '0'; };
-  const step = t => { if (t0 == null) return; const k = Math.min(1, (t - t0) / 600); ring.style.width = (k * 100) + '%'; if (k >= 1) { reset(); haptic(20); intro(); return; } raf = requestAnimationFrame(step); };
-  hold.addEventListener('contextmenu', e => e.preventDefault());
-  hold.addEventListener('pointerdown', e => { e.preventDefault(); t0 = performance.now(); raf = requestAnimationFrame(step); });
-  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => hold.addEventListener(ev, reset));
-  hold.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); intro(); } });
+  on('#hold', 'click', () => { haptic(20); intro(); });
 }
 
 function podium() {
@@ -663,7 +723,7 @@ const BADGES = [
   ['etoiles5', '⭐', 'Collection', '3 étoiles sur 5 épreuves'],
   ['explorateur', '🧭', 'Explorateur', 'Jouer toutes les épreuves'],
   ['duel', '🤖', 'Premier duel', 'Battre Mèche une fois'],
-  ['duel-fort', '⚡', 'Plus fort que Mèche', 'Battre Mèche au niveau Fort'],
+  ['duel-fort', '⚡', 'Plus fort que Mèche', 'Battre Mèche en vitesse Fusée'],
   ['turbo70', '🚀', 'Turbo', '70 ou plus en mode turbo'],
   ['famille', '👨‍👩‍👧‍👦', 'En famille', 'Finir une partie en famille']
 ];
@@ -671,7 +731,8 @@ function award(id) {
   const b = store.get('badges', {}); if (b[id]) return;
   b[id] = today(); store.set('badges', b);
   const def = BADGES.find(x => x[0] === id); if (!def) return;
-  setTimeout(() => { const d = document.createElement('div'); d.className = 'toast'; d.innerHTML = `<span>${def[1]}</span><span><b>Badge débloqué</b><br>${def[2]}</span>`; document.body.appendChild(d); SFX('record'); setTimeout(() => d.remove(), 3200); }, 900);
+  award.q = (award.q || 0) + 1; const delay = 400 + (award.q - 1) * 3200; setTimeout(() => award.q--, delay + 3000);
+  setTimeout(() => { const d = document.createElement('div'); d.className = 'toast'; d.innerHTML = `<span>${def[1]}</span><span><b>Badge débloqué</b><br>${def[2]}</span>`; document.body.appendChild(d); SFX('record'); setTimeout(() => d.remove(), 3000); }, delay);
 }
 function checkCollectionBadges() {
   const all = GAMES.every(g => ['F', 'N', 'E'].some(l => store.get(recKey(g.id, l), null) != null));
@@ -756,7 +817,7 @@ function turboPick() {
   $$('.gtok').forEach(b => b.addEventListener('click', () => { S = { mode: 'turbo', level: settings.level, seed: newSeed(), games: [GAMES.find(x => x.id === b.dataset.id)], idx: 0, scores: {}, details: {} }; intro(); }));
 }
 /* ---------- Mes progrès ---------- */
-function progress() {
+function progress() { window.scrollTo(0, 0);
   Clock.reset();
   const hist = store.get('hist', []), st = streakNow(), badges = store.get('badges', {}), gh = store.get('gh', {});
   const last = hist.slice(-20).map(h => h.score);
@@ -769,7 +830,7 @@ function progress() {
     <div class="card panel">
       <div class="statgrid"><div><b>${m10 ?? '—'}</b><span>Ta moyenne (10 dernières)</span></div><div><b>🔥 ${st.n}</b><span>Série actuelle (record ${st.best || 0})</span></div><div><b>${hist.length}</b><span>Tests joués</span></div></div>
       <p class="small" style="margin:8px 0 0">${trend}</p>
-      ${last.length >= 2 ? `<div class="chart">${chart(last)}</div>` : '<p class="muted">Ton graphique apparaîtra après 2 tests (défi du jour ou test express).</p>'}
+      ${last.length >= 2 ? `<div class="chart">${chart(last)}</div>` : '<p class="muted">Ton graphique apparaîtra après 2 parties (défi du jour ou Jouer seulress).</p>'}
       ${sp != null ? `<div class="split"><div class="sp">⚡ Rapidité<b>${sp}</b></div><div class="lo">⚙ Logique<b>${lo}</b></div></div>` : ''}
     </div>
     <div class="card panel"><h3>Tes épreuves</h3><div class="rlist">${GAMES.map(g => { const a = gh[g.id] || []; const m = avg(a.slice(-5)); return `<div class="ritem"><span class="mini" style="--c:${g.color};background:${g.color}">${g.icon}</span><span>${g.name}<br><span class="small muted">${a.length ? `${a.length} partie${a.length > 1 ? 's' : ''} · moyenne récente ${m}` : 'pas encore jouée'}</span></span><span class="v">${a.length ? Math.max(...a) : ''}</span></div>`; }).join('')}</div></div>
@@ -814,4 +875,16 @@ home();
   walk(document.body);
   new MutationObserver(ms => ms.forEach(m => m.type === 'characterData' ? walk(m.target) : m.addedNodes.forEach(walk)))
     .observe(document.body, { childList: true, subtree: true, characterData: true });
+})();
+
+/* ---------- Bouton « retour » du téléphone : pause en jeu, sinon retour à l'accueil ---------- */
+(function backButton() {
+  try { history.replaceState('home', ''); } catch (e) { return; }
+  document.addEventListener('click', () => setTimeout(() => { if (!document.querySelector('.home.h2') && history.state !== 'in') history.pushState('in', ''); }, 0), true);
+  window.addEventListener('popstate', () => {
+    const sr = document.querySelector('#sheet-root .scrim, #sheet-root .sheet');
+    if (document.querySelector('#stage') && typeof CUR !== 'undefined' && CUR && !CUR.over) { if (!sr) confirmLeave(true); history.pushState('in', ''); return; }
+    if (!document.querySelector('.home.h2')) home();
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.querySelector('#stage') && !document.querySelector('#sheet-root .sheet') && typeof CUR !== 'undefined' && CUR && !CUR.over) confirmLeave(true); });
 })();

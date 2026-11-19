@@ -107,7 +107,7 @@ const G_LANTERNE = {
     function round() {
       if (i >= P.n) {
         const avg = scores.reduce((a, b) => a + b, 0) / P.n;
-        const mean = rts.length ? Math.round(rts.reduce((a, b) => a + b, 0) / rts.length) : null;
+        const mean = rts.length ? Math.round(rts.reduce((a, b) => a + b, 0) / rts.length / (c.rate || 1)) : null;
         return c.done(avg - pen, mean ? `Réaction moyenne : ${mean} ms` + (pen ? ` · ${pen / 10 > 1 ? pen / 10 + ' leurres touchés' : '1 leurre touché'}` : '') : 'Aucune réaction valide');
       }
       state = 'wait'; flick = false; lan.className = 'lantern'; pad.classList.remove('lit'); c.ok(null);
@@ -143,7 +143,7 @@ const G_LANTERNE = {
         ids.forEach(c.cancel); ids = [];
         const rt = c.now() - litAt; state = 'pause';
         scores.push(100 * clamp01((P.slow - rt) / (P.slow - P.fast))); rts.push(rt);
-        msg.textContent = `${Math.round(rt)} ms`; c.good(pad, false); next();
+        msg.textContent = `${Math.round(rt / (c.rate || 1))} ms`; c.good(pad, false); next();
       }
     });
     round();
