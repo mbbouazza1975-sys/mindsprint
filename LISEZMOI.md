@@ -9,7 +9,7 @@
 | `questions.js` | La banque de questions du jeu « Les énigmes du phare » (mode d'emploi pour en ajouter en tête du fichier) |
 | `tutos.js` | Les consignes, exemples illustrés et essais guidés |
 | `scenes.js` | Les décors, la mascotte Mèche, étoiles, médailles et sons |
-| `app.js` | Les écrans : défi du jour, Jouer seul, parcours thématique, partage du score, joker de série, duel contre Mèche, turbo, famille, entraînement, Mes progrès, badges |
+| `app.js` | Les écrans : grand bilan (18 jeux, 6 catégories, tableau de bord), défi du jour, parcours thématique, partage du score, joker de série, duel contre Mèche, turbo, famille, entraînement, Mes progrès (bilans uniquement), sauvegarde, badges |
 | `fonts/` | Les polices Outfit et Nunito (licence OFL jointe) |
 | `sw.js` | Le service worker, qui fait marcher l'app sans connexion |
 | `manifest.webmanifest` + `icons/` | Ce qu'il faut pour l'installer sur l'écran d'accueil |

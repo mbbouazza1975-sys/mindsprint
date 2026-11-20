@@ -86,7 +86,7 @@ const bonnes = n => `${n} bonne${n > 1 ? 's' : ''} réponse${n > 1 ? 's' : ''}`;
    ========================================================= */
 
 const G_LANTERNE = {
-  id: 'lanterne', short: 'Lanterne', skill: 'reflexe', name: 'La lanterne du quai', cat: 'speed', color: '#F4B400', fg: '#1E1B4B', icon: '🏮',
+  id: 'lanterne', axis: 'speed', short: 'Lanterne', skill: 'reflexe', name: 'La lanterne du quai', cat: 'speed', color: '#F4B400', fg: '#1E1B4B', icon: '🏮',
   rule: l => l === 'F'
     ? "La lanterne est éteinte. Touche l'écran dès qu'elle s'allume en jaune."
     : "Touche l'écran dès que la lanterne s'allume en jaune. Si elle ne fait que vaciller, ne touche pas : c'est un leurre.",
@@ -190,7 +190,7 @@ const G_BATEAUX = {
 };
 
 const G_VENT = {
-  id: 'vent', short: 'Vent', skill: 'reflexe', name: 'Vent contraire', cat: 'speed', color: '#00A6C8', fg: '#1E1B4B', icon: '🧭',
+  id: 'vent', axis: 'speed', short: 'Vent', skill: 'reflexe', name: 'Vent contraire', cat: 'speed', color: '#00A6C8', fg: '#1E1B4B', icon: '🧭',
   rule: l => l === 'E'
     ? "Une flèche apparaît d'un côté de l'écran. Touche le côté vers lequel elle pointe, où qu'elle soit. Mais si la lune 🌙 l'accompagne, touche le côté où elle se trouve."
     : "Une flèche apparaît d'un côté de l'écran. Touche le côté vers lequel elle pointe, peu importe où elle se trouve.",
@@ -274,7 +274,7 @@ const G_CONSTEL = {
 };
 
 const G_GUE = {
-  id: 'gue', short: 'Gué', skill: 'calcul', name: 'Le gué de pierres', cat: 'speed', color: '#8B5A2B', fg: '#fff', icon: '🪨',
+  id: 'gue', axis: 'calc', short: 'Gué', skill: 'calcul', name: 'Le gué de pierres', cat: 'speed', color: '#8B5A2B', fg: '#fff', icon: '🪨',
   rule: () => "Un calcul s'affiche au-dessus de la rivière. Touche la pierre qui porte le bon résultat pour avancer. Cinq bonnes réponses d'affilée rapportent un bonus.",
   info: () => '30 secondes',
   run(c) {
@@ -330,7 +330,7 @@ const G_GUE = {
 };
 
 const G_LUCIOLES = {
-  id: 'lucioles', short: 'Lucioles', skill: 'attention', name: 'Nuées de lucioles', cat: 'speed', color: '#7CC242', fg: '#1E1B4B', icon: '✨',
+  id: 'lucioles', axis: 'observe', short: 'Lucioles', skill: 'attention', name: 'Nuées de lucioles', cat: 'speed', color: '#7CC242', fg: '#1E1B4B', icon: '✨',
   rule: () => "Deux nuées de lucioles brillent un court instant, une de chaque côté. Pas le temps de compter : touche le côté où il y en avait le plus.",
   info: () => '20 essais',
   run(c) {
@@ -384,7 +384,7 @@ const G_LUCIOLES = {
    ========================================================= */
 
 const G_PHARES = {
-  id: 'phares', short: 'Phares', skill: 'memoire', name: "Les phares de l'archipel", cat: 'logic', color: '#1F5FE0', fg: '#fff', icon: '🔦',
+  id: 'phares', axis: 'memory', short: 'Phares', skill: 'memoire', name: "Les phares de l'archipel", cat: 'logic', color: '#1F5FE0', fg: '#fff', icon: '🔦',
   rule: l => "Des phares s'allument l'un après l'autre. Quand c'est ton tour, rallume-les dans le même ordre. La série s'allonge à chaque réussite."
     + (l === 'E' ? ' Un éclat rouge est un faux signal : ignore-le.' : ''),
   info: l => ({ F: '3 essais ratés max', N: '2 essais ratés max', E: '2 essais ratés max' })[l],
@@ -571,7 +571,7 @@ const PX = {
 };
 
 const G_RECIF = {
-  id: 'recif', short: 'Récif', skill: 'espace', name: 'Le récif tourné', cat: 'logic', color: '#B5179E', fg: '#fff', icon: '🧩',
+  id: 'recif', axis: 'observe', short: 'Récif', skill: 'espace', name: 'Le récif tourné', cat: 'logic', color: '#B5179E', fg: '#fff', icon: '🧩',
   rule: l => "Voici un récif de corail vu d'en haut. Parmi les propositions, touche le même récif, simplement tourné."
     + (l === 'F' ? '' : ' Attention aux récifs retournés comme dans un miroir : ils ne comptent pas.'),
   info: () => '8 récifs',
@@ -643,7 +643,7 @@ const G_RECIF = {
 };
 
 const G_COURANTS = {
-  id: 'courants', short: 'Courants', skill: 'espace', name: 'Les courants', cat: 'logic', color: '#2EC4B6', fg: '#1E1B4B', icon: '🌊',
+  id: 'courants', axis: 'reason', short: 'Courants', skill: 'espace', name: 'Les courants', cat: 'logic', color: '#2EC4B6', fg: '#1E1B4B', icon: '🌊',
   rule: l => "La barque ⛵ part de sa case et suit les flèches des courants, case après case. Touche l'île 🏝️ où elle va accoster."
     + (l === 'E' ? " Un tourbillon 🌀 fait tourner son courant d'un quart de tour dans le sens des aiguilles d'une montre." : ''),
   info: () => '6 traversées',
@@ -738,7 +738,7 @@ const DU = a => `${a.du} ${a.e} ${a.n}`;
 function perms(n) { const out = [], a = [...Array(n).keys()]; const rec = k => { if (k === n) { out.push(a.slice()); return; } for (let i = k; i < n; i++) { [a[k], a[i]] = [a[i], a[k]]; rec(k + 1); [a[k], a[i]] = [a[i], a[k]]; } }; rec(0); return out; }
 
 const G_CABINES = {
-  id: 'cabines', short: 'Cabines', skill: 'logique', name: 'Les cabines de plage', cat: 'logic', color: '#0B7A42', fg: '#fff', icon: '🏖️',
+  id: 'cabines', axis: 'reason', short: 'Cabines', skill: 'logique', name: 'Les cabines de plage', cat: 'logic', color: '#0B7A42', fg: '#fff', icon: '🏖️',
   rule: () => "Lis les indices, puis range chaque animal dans sa cabine : touche un animal, puis une cabine. Quand tout est rangé, valide.",
   info: l => ({ F: '4 énigmes', N: '4 énigmes', E: '3 énigmes' })[l],
   run(c) {
@@ -852,7 +852,7 @@ const G_CABINES = {
 };
 
 const G_MOUETTES = {
-  id: 'mouettes', short: 'Mouettes', skill: 'logique', name: 'Le tri des mouettes', cat: 'logic', color: '#4E5A73', fg: '#fff', icon: '🕊️',
+  id: 'mouettes', axis: 'reason', short: 'Mouettes', skill: 'logique', name: 'Le tri des mouettes', cat: 'logic', color: '#4E5A73', fg: '#fff', icon: '🕊️',
   rule: l => "La mouette apporte une carte. Dépose-la dans le bon panier. La règle de tri est secrète : seuls ✓ et ✗ te guident. Et elle change en cours de route !"
     + (l === 'F' ? ' On te préviendra quand elle change.' : ''),
   info: () => '24 cartes',
@@ -929,7 +929,7 @@ function crabSVG(k) {
 const flagHTML = k => `<span class="crabflag"><span class="cf-dot" style="background:${CRAB_COLS[k].h}"><svg viewBox="0 0 100 100" width="22" height="22">${CRAB_SYM[k].replace(/50/g, '50')}</svg></span>${CRAB_COLS[k].n}</span>`;
 
 const G_CRABES = {
-  id: 'crabes', short: 'Crabes', skill: 'reflexe', name: 'Les crabes farceurs', cat: 'speed', color: '#C2410C', fg: '#fff', icon: '🦀',
+  id: 'crabes', axis: 'speed', short: 'Crabes', skill: 'reflexe', name: 'Les crabes farceurs', cat: 'speed', color: '#C2410C', fg: '#fff', icon: '🦀',
   rule: l => l === 'F' ? 'Des crabes sortent de leurs trous. Touche-les vite avant qu’ils redescendent.'
     : 'Des crabes sortent de leurs trous. Touche seulement ceux de la couleur du drapeau, et vite !',
   info: () => '30 secondes',
@@ -987,7 +987,7 @@ const G_CRABES = {
 };
 
 const G_BULLES = {
-  id: 'bulles', short: 'Bulles', skill: 'calcul', name: 'Les bulles du plongeur', cat: 'logic', color: '#0E7490', fg: '#fff', icon: '🤿',
+  id: 'bulles', axis: 'calc', short: 'Bulles', skill: 'calcul', name: 'Les bulles du plongeur', cat: 'logic', color: '#0E7490', fg: '#fff', icon: '🤿',
   rule: l => l === 'E' ? 'L’ardoise du plongeur montre un total. Touche les 3 bulles dont la somme fait ce total.'
     : 'L’ardoise du plongeur montre un total. Touche les 2 bulles dont la somme fait ce total.',
   info: () => '40 secondes',
@@ -1053,7 +1053,7 @@ const MYST = {
 const MYST_CAT = { animaux: 'un animal', objets: 'un objet', nourriture: 'quelque chose à manger', vehicules: 'un véhicule', personnages: 'un personnage', chiffres: 'un chiffre' };
 
 const G_MYSTERE = {
-  id: 'mystere', short: 'Image', skill: 'langage', name: 'L’image mystère', cat: 'speed', color: '#9333EA', fg: '#fff', icon: '🖼️',
+  id: 'mystere', axis: 'observe', short: 'Image', skill: 'langage', name: 'L’image mystère', cat: 'speed', color: '#9333EA', fg: '#fff', icon: '🖼️',
   rule: () => 'Une image se dévoile petit à petit sous des carreaux. Devine le plus vite possible ce qu’elle représente parmi les 4 réponses.',
   info: () => '8 images',
   run(c) {
@@ -1114,7 +1114,7 @@ function vitralCell(a) {
   return `<span class="vc n${n}">${Array.from({ length: n }, () => `<svg viewBox="0 0 100 100" style="width:${size}px;height:${size}px">${shapeInner(a.shape, COLORS[a.color].h, 7)}</svg>`).join('')}</span>`;
 }
 const G_VITRAUX = {
-  id: 'vitraux', short: 'Vitraux', skill: 'logique', name: 'Les vitraux du phare', cat: 'logic', color: '#4338CA', fg: '#fff', icon: '🪟',
+  id: 'vitraux', axis: 'logic', short: 'Vitraux', skill: 'logique', name: 'Les vitraux du phare', cat: 'logic', color: '#4338CA', fg: '#fff', icon: '🪟',
   rule: () => 'Chaque ligne du vitrail suit des règles (forme, couleur, nombre). Trouve la pièce qui complète la case vide.',
   info: () => '8 vitraux',
   run(c) {
@@ -1174,7 +1174,7 @@ const G_VITRAUX = {
 
 /* --- Suites de nombres --- */
 const G_SUITES = {
-  id: 'suites', short: 'Bouées', skill: 'calcul', name: 'Les bouées numérotées', cat: 'logic', color: '#B45309', fg: '#fff', icon: '🔢',
+  id: 'suites', axis: 'logic', short: 'Bouées', skill: 'calcul', name: 'Les bouées numérotées', cat: 'logic', color: '#B45309', fg: '#fff', icon: '🔢',
   rule: () => 'Les bouées suivent une règle de nombres. Trouve le nombre qui vient ensuite.',
   info: () => '8 suites',
   run(c) {
@@ -1236,7 +1236,7 @@ const G_SUITES = {
 const SHOP = [['🍦', 'une glace'], ['🥐', 'un croissant'], ['🎈', 'un ballon'], ['🧃', 'un jus'], ['🪁', 'un cerf-volant'], ['🍭', 'une sucette'], ['📒', 'un carnet'], ['🧢', 'une casquette'], ['🐚', 'un coquillage'], ['🍩', 'un beignet'], ['🧸', 'une peluche'], ['🕶️', 'des lunettes']];
 const euro = c => (c % 100 ? (c / 100).toFixed(2).replace('.', ',') : String(c / 100)) + ' €';
 const G_BOUTIQUE = {
-  id: 'boutique', short: 'Boutique', skill: 'calcul', name: 'La boutique du port', cat: 'speed', color: '#15803D', fg: '#fff', icon: '🪙',
+  id: 'boutique', axis: 'calc', short: 'Boutique', skill: 'calcul', name: 'La boutique du port', cat: 'speed', color: '#15803D', fg: '#fff', icon: '🪙',
   rule: l => 'Un client achète un objet. Touche les pièces et billets pour payer le prix exact.' + (l === 'E' ? ' Bonus si tu utilises le moins de pièces possible.' : ''),
   info: () => '40 secondes',
   run(c) {
@@ -1290,7 +1290,7 @@ const DECK = ['⚓', '🧭', '🎣', '🦜', '🐚', '🔔', '🗺️', '🔭', 
 
 /* --- Qui a bougé sur le pont ? (mémoire de travail visuelle) --- */
 const G_PONT = {
-  id: 'pont', short: 'Pont', skill: 'memoire', name: 'Qui a bougé sur le pont ?', cat: 'logic', color: '#A16207', fg: '#fff', icon: '⚓',
+  id: 'pont', axis: 'memory', short: 'Pont', skill: 'memoire', name: 'Qui a bougé sur le pont ?', cat: 'logic', color: '#A16207', fg: '#fff', icon: '⚓',
   rule: l => 'Regarde bien les objets posés sur le pont. Un rideau tombe un instant. Quand il remonte, '
     + ({ F: 'un objet a été remplacé par un autre : touche sa case.', N: 'un objet a été remplacé, ou un nouvel objet est apparu : touche sa case.', E: 'deux objets ont échangé leur place : touche l’un des deux.' })[l],
   info: () => '8 manches',
@@ -1449,7 +1449,7 @@ const G_MAREE = {
 /* --- Le filet du pêcheur : mémoriser des positions (difficulté adaptative) --- */
 const FISH_SVG = '<svg viewBox="0 0 100 60" aria-hidden="true"><path d="M8 30C22 8 58 4 76 30 58 56 22 52 8 30z" fill="#FFB020" stroke="#7A4A00" stroke-width="4"/><path d="M74 30l20-16v32z" fill="#FF8A00" stroke="#7A4A00" stroke-width="4" stroke-linejoin="round"/><circle cx="26" cy="26" r="5" fill="#10284A"/></svg>';
 const G_FILET = {
-  id: 'filet', short: 'Filet', skill: 'memoire', name: 'Le filet du pêcheur', cat: 'speed', color: '#4D7C0F', fg: '#fff', icon: '🎣',
+  id: 'filet', axis: 'memory', short: 'Filet', skill: 'memoire', name: 'Le filet du pêcheur', cat: 'speed', color: '#4D7C0F', fg: '#fff', icon: '🎣',
   rule: l => 'Des poissons brillent un court instant dans le filet. Retiens leurs places, puis touche les cases où ils étaient. Deux erreurs et le filet remonte.'
     + (l === 'E' ? ' Un crabe se cache aussi : ne touche pas sa case !' : ''),
   info: () => '8 manches',
@@ -1517,7 +1517,7 @@ function enigPick(c, n) {
   return { list: [...fresh, ...fill], mark: true };
 }
 const G_ENIGMES = {
-  id: 'enigmes', short: 'Énigmes', skill: 'logique', name: 'Les énigmes du phare', cat: 'logic', color: '#BE123C', fg: '#fff', icon: '💡',
+  id: 'enigmes', axis: 'logic', short: 'Énigmes', skill: 'logique', name: 'Les énigmes du phare', cat: 'logic', color: '#BE123C', fg: '#fff', icon: '💡',
   rule: () => 'Lis bien chaque question : la réponse est sous tes yeux, pas besoin de connaissances. Touche la bonne réponse parmi les 4. Une explication suit chaque réponse.',
   info: () => '6 questions',
   run(c) {

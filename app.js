@@ -27,7 +27,28 @@ const PROFILES = {
 const LV_ORDER = ['F', 'N', 'E'];
 const prof = () => PROFILES[settings.profile] || PROFILES.classic;
 function clampLevel(l, p = prof()) { const i = LV_ORDER.indexOf(l), a = LV_ORDER.indexOf(p.min), b = LV_ORDER.indexOf(p.max); return LV_ORDER[Math.max(a, Math.min(b, i < 0 ? a : i))]; }
-function setProfile(k) { const p = PROFILES[k]; settings.profile = k; settings.level = p.start; settings.chrono = p.chrono; saveSettings(); }
+/* ---------- Les 6 catégories du grand bilan (champ axis des jeux) ---------- */
+const AX_ORDER = ['calc', 'logic', 'reason', 'observe', 'memory', 'speed'];
+const AXES = {
+  calc: { name: 'Calcul mental', short: 'Calcul', icon: '🧮', games: ['gue', 'bulles', 'boutique'] },
+  logic: { name: 'Logique', short: 'Logique', icon: '🧩', games: ['enigmes', 'vitraux', 'suites'] },
+  reason: { name: 'Raisonnement', short: 'Raisonnement', icon: '🔎', games: ['cabines', 'mouettes', 'courants'] },
+  observe: { name: 'Observation', short: 'Observation', icon: '👁️', games: ['mystere', 'lucioles', 'recif'] },
+  memory: { name: 'Mémoire', short: 'Mémoire', icon: '🧠', games: ['phares', 'pont', 'filet'] },
+  speed: { name: 'Rapidité', short: 'Rapidité', icon: '⚡', games: ['lanterne', 'vent', 'crabes'] }
+};
+/* Ordre fixe : on alterne les catégories pour varier le rythme (calcul, rapidité, logique, observation, raisonnement, mémoire) ×3 */
+const BILAN_ROUND = ['calc', 'speed', 'logic', 'observe', 'reason', 'memory'];
+const BILAN_IDS = [0, 1, 2].flatMap(k => BILAN_ROUND.map(a => AXES[a].games[k]));
+/* Niveau de chaque catégorie : réglé par les bilans (niveau automatique) ou fixe (= settings.level) */
+function initLevels() {
+  const raw = store.get('settings', {}), s = (!settings.levels && raw.level) ? raw.level : prof().start;
+  if (!settings.levels || typeof settings.levels !== 'object') settings.levels = {};
+  AX_ORDER.forEach(a => { settings.levels[a] = clampLevel(settings.levels[a] || s); });
+}
+const catLevel = a => clampLevel(settings.autoLevel ? (settings.levels || {})[a] || prof().start : settings.level);
+const curLevels = () => Object.fromEntries(AX_ORDER.map(a => [a, catLevel(a)]));
+function setProfile(k) { const p = PROFILES[k]; settings.profile = k; settings.level = p.start; settings.chrono = p.chrono; settings.levels = Object.fromEntries(AX_ORDER.map(a => [a, p.start])); saveSettings(); }
 function saveSettings() { store.set('settings', settings); applyTheme(); }
 function applyTheme() {
   const root = document.documentElement;
@@ -100,7 +121,7 @@ function sheet(html, onOpen) {
   const close = () => { root.innerHTML = ''; document.removeEventListener('keydown', onKey); if (prevFocus && prevFocus.focus) try { prevFocus.focus(); } catch (e) { } };
   const onKey = e => {
     if (e.key === 'Escape') { e.preventDefault(); const b = $('#cont, #cancel, #ok', scrim); if (b) b.click(); else close(); }
-    if (e.key === 'Tab') { const f = $$('button,input', scrim).filter(x => !x.disabled); if (!f.length) return; const i = f.indexOf(document.activeElement); if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); } else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); } }
+    if (e.key === 'Tab') { const f = $$('button,input,textarea', scrim).filter(x => !x.disabled); if (!f.length) return; const i = f.indexOf(document.activeElement); if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); } else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); } }
   };
   document.addEventListener('keydown', onKey);
   if (onOpen) onOpen(scrim, close);
@@ -116,7 +137,7 @@ function floatWord(x, y) {
 function fx(el, cls) { if (!el) return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
 const recKey = (id, l) => `rec:${id}:${l}`;
 const newSeed = () => (Math.random() * 4294967296) >>> 0;
-function catPill(cat) { return cat === 'speed' ? `<span class="pill"><span class="catdot cat-speed" style="position:static;width:20px;height:20px;font-size:.65rem">⚡</span>Rapidité</span>` : `<span class="pill"><span class="catdot cat-logic" style="position:static;width:20px;height:20px;font-size:.65rem">⚙</span>Logique</span>`; }
+function catPill(cat, axis) { if (axis && AXES[axis]) return `<span class="pill">${AXES[axis].icon} ${AXES[axis].name}</span>`; return cat === 'speed' ? `<span class="pill"><span class="catdot cat-speed" style="position:static;width:20px;height:20px;font-size:.65rem">⚡</span>Rapidité</span>` : `<span class="pill"><span class="catdot cat-logic" style="position:static;width:20px;height:20px;font-size:.65rem">⚙</span>Logique</span>`; }
 
 /* ---------- État de la session en cours ---------- */
 let S = null;
@@ -154,10 +175,10 @@ const THEMES = {
   calcul: { name: 'Calcul', icon: '🔢', sub: 'Calcul mental, monnaie et suites de nombres', near: ['lucioles', 'enigmes'] },
   reflexe: { name: 'Réflexes', icon: '⚡', sub: 'Réagir vite, et sans se tromper', near: ['constellation', 'maree', 'filet', 'mystere'] }
 };
+/* Liste des jeux de l'accueil : rangée par catégorie du bilan, puis les jeux « en plus » */
 const GROUPS = [
-  ['speed', '⚡ Rapidité et réflexes', g => g.cat === 'speed' && !['gue', 'boutique'].includes(g.id)],
-  ['logic', '🧩 Logique et mémoire', g => g.cat === 'logic' && !['bulles', 'suites'].includes(g.id)],
-  ['num', '🔢 Chiffres et calcul', g => ['gue', 'bulles', 'suites', 'boutique'].includes(g.id)]
+  ...AX_ORDER.map(a => [a, `${AXES[a].icon} ${AXES[a].name}`, g => g.axis === a]),
+  ['more', '🎲 Et aussi (hors bilan)', g => !g.axis]
 ];
 function gameRow(g, lvl) {
   const rec = store.get(recKey(g.id, lvl), null), n = rec == null ? 0 : starsOf(rec);
@@ -166,22 +187,7 @@ function gameRow(g, lvl) {
     <span class="gr-tx"><b>${g.name}${NEW_GAMES.includes(g.id) ? ' <em class="nw">Nouveau</em>' : ''}</b><small>${WHAT[g.id]}</small></span>
     <span class="gr-st" aria-hidden="true">${'★'.repeat(n)}<i>${'★'.repeat(3 - n)}</i></span></button>`;
 }
-/* ---------- Niveau qui évolue avec les résultats du dernier jour joué ---------- */
-function autoAdjust() {
-  if (!settings.autoLevel || !settings.profile) return null;
-  const t = today(); if (store.get('adjDay', null) === t) return null;
-  store.set('adjDay', t);
-  const dl = store.get('dlog', {}), days = Object.keys(dl).filter(d => d < t).sort();
-  if (!days.length) return null;
-  const last = dl[days[days.length - 1]]; if (!last || last.n < 2) return null;
-  const avg = Math.round(last.s / last.n), cur = settings.level, i = LV_ORDER.indexOf(cur);
-  let nl = cur;
-  if (avg >= 78) nl = clampLevel(LV_ORDER[Math.min(2, i + 1)]);
-  else if (avg < 42) nl = clampLevel(LV_ORDER[Math.max(0, i - 1)]);
-  if (nl === cur) return { same: true, avg };
-  settings.level = nl; saveSettings();
-  return { up: LV_ORDER.indexOf(nl) > i, avg, nl };
-}
+/* Niveau automatique : voir bilanAdjust() — seuls les grands bilans terminés le font évoluer. */
 function profileSheet(first) {
   sheet(`<h2>${first ? 'Bienvenue ! Qui joue ?' : 'Ton profil de joueur'}</h2>
     <p class="small muted" style="margin:-4px 0 12px">Les jeux s’adaptent : vitesse, difficulté, taille du texte et chrono. Tu pourras changer plus tard dans les réglages ⚙.</p>
@@ -204,28 +210,36 @@ function readySheet(title, sub, go) {
 function home() {
   Clock.reset(); S = null;
   if (!settings.profile) { const seen = store.get('seen', false); app.innerHTML = `<div class="screen home h2"><div class="home-sky" aria-hidden="true">${HOME_ART}</div><header class="hh"><div><div class="wordmark">Mind<b>Sprint</b></div><div class="slogan">Muscle tes méninges en t’amusant !</div></div></header></div>`; if (seen) { settings.profile = 'classic'; saveSettings(); } else { setTimeout(() => profileSheet(true), 200); return; } }
-  const adj = autoAdjust();
-  settings.level = clampLevel(settings.level);
+  settings.level = clampLevel(settings.level); initLevels(); store.set('settings', settings);
   const first = !store.get('seen', false), lvl = settings.level;
   const st = streakNow(), daily = store.get('daily', {}), doneToday = daily.d === today(), jk = st.n > 0 && jokerFree();
-  const hist = store.get('hist', []), m10 = hist.length ? Math.round(hist.slice(-10).reduce((x, h) => x + h.score, 0) / Math.min(10, hist.length)) : null;
+  const mine = myBilans(), lastB = mine[mine.length - 1], run = bilanRun(), expired = bilanExpired();
+  const ageB = lastB ? dayDiff(lastB.d, today()) : null;
+  const streakMsg = st.saved && !doneToday ? `Tu as manqué le défi hier… Pas de panique : ton joker 🛟 de la semaine garde ta série de ${st.n} jour${st.n > 1 ? 's' : ''} si tu joues aujourd’hui !` : st.n ? `Série de ${st.n} jour${st.n > 1 ? 's' : ''} 🔥 ${doneToday ? 'Défi du jour réussi, bravo !' : 'Le défi du jour t’attend.'}` : '';
+  const bubble = first ? 'Salut, moi c’est Mèche ! Commence par le grand bilan : 18 jeux pour voir où tu en es dans chaque catégorie.'
+    : run ? `Ton bilan t’attend : ${run.idx} jeu${run.idx > 1 ? 'x' : ''} sur ${BILAN_IDS.length} déjà faits. On termine ?`
+    : expired ? `Ton bilan commencé il y a plus de 7 jours a expiré. On en recommence un tout neuf ?`
+    : lastB && ageB >= 1 ? `Ton dernier bilan date ${ageB === 1 ? 'd’hier' : `de ${ageB} jours`} : ${lastB.global}/100. On en refait un pour voir l’évolution ?`
+    : lastB ? `Bilan du jour fait : ${lastB.global}/100 ✔ ${streakMsg || 'Reviens demain pour voir ton évolution.'}`
+    : streakMsg || 'Fais ton premier grand bilan : je t’explique les règles avant chaque jeu.';
   const stars = GAMES.map(g => { const b = bestOf(g.id); return b < 0 ? 0 : starsOf(b); }), tot = stars.reduce((a, b) => a + b, 0);
   const myst = GAMES.find(g => g.id === 'mystere');
   app.innerHTML = `<div class="screen home h2">
    <div class="home-sky" aria-hidden="true">${HOME_ART}</div>
    <header class="hh"><div><div class="wordmark">Mind<b>Sprint</b></div><div class="slogan">Muscle tes méninges en t’amusant !</div><button class="prof-chip" id="pchip" aria-label="Profil : ${prof().name}. Changer">${prof().icon} ${prof().name} <span class="pc-ch">· changer</span></button></div>
      <div class="hh-r"><button class="iconbtn" id="help" aria-label="Comment jouer ?">?</button><button class="iconbtn" id="set" aria-label="Réglages">⚙</button></div></header>
-   <div class="hello"><div class="bubble">${adj && !adj.same ? `Ta dernière journée de jeu : ${adj.avg}/100 de moyenne, ${adj.up ? 'je monte' : 'je baisse'} ton niveau à « ${LEVELS[adj.nl].name} » ${adj.up ? '💪' : '🙂'}` : first ? 'Salut, moi c’est Mèche ! Choisis un jeu et je t’explique tout avant de commencer.' : st.saved && !doneToday ? `Tu as manqué le défi hier… Pas de panique : ton joker 🛟 de la semaine garde ta série de ${st.n} jour${st.n > 1 ? 's' : ''} si tu joues aujourd’hui !` : st.n ? `Série de ${st.n} jour${st.n > 1 ? 's' : ''} 🔥 ${doneToday ? 'Défi du jour réussi, bravo !' : 'Le défi du jour t’attend.'}` : 'Choisis un jeu ou lance une partie : je t’explique les règles avant chaque épreuve.'}</div>${MECHE}</div>
+   <div class="hello"><div class="bubble">${bubble}</div>${MECHE}</div>
    <div class="home-sheet">
    <section class="hs-play">
-     <button class="play-main" id="solo"><span class="pm-ic">▶</span><span><b>Jouer seul</b><small>8 jeux au hasard · score sur 100 · ${settings.chrono ? '⏱ avec chrono' : '🌿 sans chrono'}</small></span></button>
+     <button class="play-main" id="solo"><span class="pm-ic">${run ? '⏯' : '▶'}</span><span>${run ? `<b>Reprendre le bilan (${run.idx}/${BILAN_IDS.length})</b><small>Tu reprends au jeu ${run.idx + 1} · ${run.chrono ? '⏱ avec chrono' : '🌿 sans chrono'}</small>` : `<b>Le grand bilan</b><small>18 jeux · 6 catégories · ≈ 25 min (plus long la 1re fois) · ${settings.chrono ? '⏱ avec chrono' : '🌿 sans chrono'}</small>`}</span></button>
+     ${run ? '<button class="btn ghost restart-b" id="restart">Recommencer le bilan à zéro</button>' : ''}
 <button class="mode m-daily ${doneToday ? 'done' : ''}" id="daily"><span class="md-ic">📅</span><span><b>Défi du jour ${st.n ? `<em class="fire">🔥 ${st.n}</em>` : ''}${jk ? '<em class="fire joker" title="Joker de série : sauve ta série si tu rates un seul jour" aria-label="1 joker de série disponible cette semaine">🛟</em>' : ''}</b><small>${doneToday ? `Fait aujourd’hui : ${daily.score}/100. Tu peux le rejouer pour t’entraîner (ta série ne change pas).` : '5 jeux, les mêmes pour tout le monde aujourd’hui. Joue chaque jour pour allonger ta série.'}${jk ? ' 🛟 Joker : 1 jour raté par semaine est pardonné.' : ''}</small></span></button>
      <button class="play-feat" id="feat" style="--c:${myst.color}"><span class="pf-ic">${myst.icon}</span><span><em class="nw">À la une</em><b>${myst.name}</b><small>Une image se dévoile : devine-la avant les autres !</small></span><span class="pf-go">Jouer</span></button>
    </section>
    <section class="hs-sec">
      <div class="sec-h"><h2>Choisis un jeu</h2><span class="small">${GAMES.length} jeux</span></div>
      <div class="lvl-pick" role="group" aria-label="Niveau">${Object.entries(LEVELS).map(([k, v]) => `<button class="${k === lvl ? 'on' : ''}" data-l="${k}" aria-pressed="${k === lvl}" ${clampLevel(k) !== k ? 'disabled title="Pas dans ce profil"' : ''}>${v.name}</button>`).join('')}</div>
-     <div class="lvl-note"><p class="small">${settings.autoLevel ? 'Le niveau s’ajuste chaque jour selon tes résultats.' : 'Niveau fixe (réglages ⚙).'}</p>${chronoSwitch('chr')}</div>
+     <div class="lvl-note"><p class="small">Niveau pour jouer librement (entraînement). Le grand bilan, lui, règle un niveau par catégorie${settings.autoLevel ? ' selon tes résultats' : ''}.</p>${chronoSwitch('chr')}</div>
      ${GROUPS.map(([k, t, f]) => `<h3 class="grp">${t}</h3><div class="glist">${GAMES.filter(f).map(g => gameRow(g, lvl)).join('')}</div>`).join('')}
    </section>
    <section class="hs-sec">
@@ -235,12 +249,12 @@ function home() {
        <button class="mode m-theme" id="theme"><span class="md-ic">🎯</span><span><b>Parcours thématique</b><small>Mémoire, logique, calcul ou réflexes : 5 jeux pour travailler une compétence.</small></span></button>
        <button class="mode m-fam" id="fam"><span class="md-ic">👨‍👩‍👧‍👦</span><span><b>En famille</b><small>2 à 4 joueurs sur le même téléphone, chacun son tour, podium à la fin.</small></span></button>
        <button class="mode m-turbo" id="turbo"><span class="md-ic">🚀</span><span><b>Mode turbo</b><small>Un jeu qui accélère sans arrêt : tiens le plus longtemps possible.</small></span></button>
-       <button class="mode m-prog" id="prog"><span class="md-ic">📈</span><span><b>Mes progrès</b><small>${m10 != null ? `Ta moyenne : ${m10}/100 · ` : ''}graphique de ton évolution et badges.</small></span></button>
+       <button class="mode m-prog" id="prog"><span class="md-ic">📈</span><span><b>Mes progrès</b><small>${lastB ? `Dernier bilan : ${lastB.global}/100 · ` : ''}ton tableau de bord bilan après bilan, records et badges.</small></span></button>
      </div>
    </section>
-   ${hist.length >= 2 ? `<div class="mini-chart">${sparkline(hist.slice(-12).map(h => h.score))}<span>Tes ${Math.min(12, hist.length)} dernières parties</span></div>` : ''}
+   ${mine.length >= 2 ? `<button class="mini-chart" id="mchart" aria-label="Voir Mes progrès">${sparkline(mine.slice(-12).map(b => b.global))}<span>Tes ${Math.min(12, mine.length)} derniers bilans</span></button>` : ''}
    ${deferredInstall ? `<button class="mode" id="inst"><span class="md-ic">📲</span><span><b>Installer l’app</b><small>Sur l’écran d’accueil, même sans connexion.</small></span></button>` : ''}
-   <p class="small foot">${tot} étoile${tot > 1 ? 's' : ''} sur ${GAMES.length * 3} · Un jeu pour s’amuser, pas un test scientifique.</p>
+   <p class="small foot">${tot} étoile${tot > 1 ? 's' : ''} sur ${GAMES.length * 3}<br>Un bilan par semaine, et tu vois tes progrès.<br>Gratuit · sans pub · sans compte · tes données restent dans ton téléphone</p>
    </div>
   </div>`;
   store.set('seen', true);
@@ -251,7 +265,9 @@ function home() {
   on('#help', 'click', helpSheet);
   on('#set', 'click', settingsSheet);
   on('#daily', 'click', startDaily);
-  on('#solo', 'click', () => readySheet('Jouer seul', '8 jeux tirés au hasard, adaptés à ton profil.', level => startExpress(level)));
+  on('#solo', 'click', () => { if (bilanRun()) resumeBilan(); else bilanSheet(); });
+  on('#restart', 'click', e => { const b = e.currentTarget; if (b.dataset.armed) { store.set('bilanRun', null); home(); } else { b.dataset.armed = '1'; b.textContent = 'Sûr ? Touche encore : les jeux déjà faits seront perdus'; } });
+  on('#mchart', 'click', progress);
   on('#pchip', 'click', () => profileSheet(false));
   on('#chr', 'click', () => { settings.chrono = !settings.chrono; saveSettings(); const y = window.scrollY; home(); window.scrollTo(0, y); });
   on('#duel', 'click', duelSetup);
@@ -265,12 +281,13 @@ function home() {
 function helpSheet() {
   sheet(`<h2>Comment jouer ?</h2>
     <ol class="howto">
-      <li><b>Pour jouer seul :</b> touche <em>Jouer seul</em> (8 jeux enchaînés, score final sur 100) ou touche directement un jeu de la liste.</li>
-      <li><b>Avant chaque jeu,</b> Mèche explique la règle avec un exemple. Tu peux faire un <em>essai sans chrono</em> pour comprendre.</li>
-      <li><b>Le niveau</b> se choisit en haut de la liste : Échauffement (enfants), En forme, Costaud.</li>
-      <li><b>Chaque jeu</b> donne un score sur 100 et jusqu’à 3 étoiles. Bats ton record !</li>
-      <li><b>Chaque jour,</b> le défi du jour garde ta série 🔥 en vie. Un joker 🛟 par semaine la sauve si tu rates un seul jour. Tes progrès et ta moyenne sont dans <em>Mes progrès</em>.</li>
-      <li><b>Pour travailler une compétence</b> (mémoire, logique, calcul, réflexes), choisis un <em>Parcours thématique</em>.</li>
+      <li><b>Le grand bilan :</b> 18 jeux, toujours les mêmes et dans le même ordre, 3 par catégorie : 🧮 calcul mental, 🧩 logique (avec les énigmes), 🔎 raisonnement, 👁️ observation, 🧠 mémoire et ⚡ rapidité. Compte 20 à 25 minutes.</li>
+      <li><b>Pause quand tu veux :</b> le bilan est gardé après chaque jeu. Tu le reprends depuis l’accueil pendant 7 jours.</li>
+      <li><b>À la fin,</b> ton tableau de bord montre un score sur 100 pour chaque catégorie, ton score global, ton point fort et la comparaison avec ton bilan d’avant.</li>
+      <li><b>Mes progrès</b> ne compte que les grands bilans : comme ce sont les mêmes jeux, tu peux vraiment comparer. Les autres modes gardent leurs records et badges, mais ne changent pas ta courbe.</li>
+      <li><b>Le niveau</b> de chaque catégorie s’ajuste avec tes bilans : 2 bilans d’affilée à 78 ou plus, il monte ; 2 bilans d’affilée sous 42, il baisse. Tu peux le figer dans les réglages ⚙.</li>
+      <li><b>Avant chaque jeu,</b> Mèche explique la règle avec un exemple, et tu peux faire un <em>essai sans chrono</em>. Une fois compris, on passe directement au jeu.</li>
+      <li><b>Pour varier :</b> défi du jour (garde ta série 🔥), entraînement libre dans la liste, parcours thématique, duel, turbo et partie en famille.</li>
     </ol>
     <button class="btn" id="ok">Compris !</button>`, (root, close) => { on('#ok', 'click', close, root); root.addEventListener('click', e => { if (e.target === root) close(); }); });
 }
@@ -299,10 +316,13 @@ function settingsSheet() {
     ${sw('haptic', 'Vibrations', 'Sur les téléphones qui le permettent')}
     <div class="toggle"><span><b>Profil de joueur</b><br><span class="small muted">${prof().icon} ${prof().name} · ${prof().sub}</span></span><button class="chip" id="chp">Changer</button></div>
     ${sw('chrono', 'Contre la montre', 'Sinon : pas de chrono affiché, tu joues à ton rythme')}
-    ${sw('autoLevel', 'Niveau automatique', 'Monte ou baisse chaque jour selon tes résultats de la veille')}
+    ${sw('autoLevel', 'Niveau automatique', 'Après chaque grand bilan, chaque catégorie monte ou baisse selon ton score. Sinon : niveau fixe pour tout.')}
     ${sw('moreTime', 'Encore plus de temps', '+50 % sur tous les temps d’affichage et de réponse')}
     <div class="toggle"><b>Thème</b><span class="chips" id="th">${[['auto', 'Auto'], ['light', 'Clair'], ['dark', 'Sombre']].map(([k, l]) => `<button class="chip ${settings.theme === k ? 'on' : ''}" data-t="${k}">${l}</button>`).join('')}</span></div>
     <p class="small muted" style="margin-top:14px">${iOS ? 'Pour installer l’app sur iPhone : touche « Partager », puis « Sur l’écran d’accueil ».' : 'Pour installer l’app : menu du navigateur, puis « Installer l’application » ou « Ajouter à l’écran d’accueil ».'}</p>
+    <div class="toggle bk-row"><span><b>Ma progression</b><br><span class="small muted">Elle reste dans ce téléphone. Garde une copie pour ne rien perdre.</span></span></div>
+    <button class="btn secondary" id="bksave" style="margin-top:10px">💾 Sauvegarder ma progression</button>
+    <button class="btn secondary" id="bkload" style="margin-top:10px">📥 Restaurer une sauvegarde</button>
     <button class="btn secondary" id="wipe" style="margin-top:14px">Tout effacer (records, progrès, badges)</button>
     <button class="btn" id="ok">Fermer</button>
   `, (root, close) => {
@@ -314,6 +334,8 @@ function settingsSheet() {
       else { b.dataset.armed = '1'; b.textContent = 'Sûr ? Touche encore pour confirmer'; }
     }, root);
     on('#chp', 'click', () => { close(); profileSheet(false); }, root);
+    on('#bksave', 'click', () => { close(); backupSheet(); }, root);
+    on('#bkload', 'click', () => { close(); restoreSheet(); }, root);
     on('#ok', 'click', () => { close(); home(); }, root);
     root.addEventListener('click', e => { if (e.target === root) { close(); home(); } });
   });
@@ -349,19 +371,24 @@ function profileKey() { const pl = S && S.mode === 'family' ? S.players[S.p] : n
 const tutoKey = g => `tuto:${profileKey()}:${g.id}:${S.level}`;
 function rulesHTML(g, lvl) { return `<ul class="rules">${tutoRules(g.id, lvl).map(r => `<li>${r}</li>`).join('')}</ul>`; }
 function exampleHTML(g, lvl) { const T = TUTOS[g.id]; return `<div class="example"><div class="ex-title">Exemple</div><div class="ex-body">${T.ex(lvl)}</div><p class="ex-leg">${T.legend(lvl)}</p></div>`; }
+const chronoOn = () => S && S.mode === 'bilan' ? !!S.chrono : settings.chrono;
+const moreTimeOn = () => S && S.mode === 'bilan' ? !!S.moreTime : settings.moreTime;
+/* Bilan et défi du jour : chaque jeu se joue au niveau de SA catégorie */
+function syncLevel() { if (S && S.levels) { const g = S.games[S.idx]; S.level = g.axis && S.levels[g.axis] ? S.levels[g.axis] : (S.baseLevel || settings.level); } }
 function intro() {
-  Clock.reset(); window.scrollTo(0, 0);
+  Clock.reset(); window.scrollTo(0, 0); syncLevel();
   const g = S.games[S.idx], lvl = S.level, pl = currentPlayer(), T = TUTOS[g.id];
+  const bil = S.mode === 'bilan';
   const rec = !['family', 'duel', 'turbo'].includes(S.mode) ? store.get(recKey(g.id, lvl), null) : S.mode === 'turbo' ? store.get('turbo:' + g.id, null) : null;
-  const step = S.games.length > 1 ? `Épreuve ${S.idx + 1} sur ${S.games.length}` : '';
+  const step = S.games.length > 1 ? `${bil ? 'Jeu' : 'Épreuve'} ${S.idx + 1} sur ${S.games.length}` : '';
   const done = store.get(tutoKey(g), false);
   app.innerHTML = `<div class="screen play">${scene(g.id)}
     <div class="topbar"><button class="iconbtn" id="x" aria-label="Quitter">✕</button>${step ? `<span class="plaque small" style="margin-left:auto">${step}</span>` : ''}${pl ? `<span class="plaque small" style="${step ? '' : 'margin-left:auto'}">${esc(pl.name)}</span>` : ''}</div>
     <div class="postcard short">${SCENES[g.id]}<div class="tag"><span class="ic">${g.icon}</span><div><h1>${g.name}</h1><span class="small">${T.but}</span></div></div></div>
     <div class="coach">${MECHE.replace('data-mood="neutral"', 'data-mood="happy"')}<div class="bubble">${rulesHTML(g, lvl)}</div></div>
     ${exampleHTML(g, lvl)}
-    <div class="chips" style="margin-top:10px">${catPill(g.cat)}<span class="pill">⏱ ${g.info(lvl)}</span><span class="pill">${gauge(LEVELS[lvl].g)} ${LEVELS[lvl].name}</span>${rec != null ? `<span class="pill">🏆 ${rec}</span>` : ''}</div>
-    ${!['duel', 'turbo', 'family'].includes(S.mode) ? chronoSwitch() : ''}
+    <div class="chips" style="margin-top:10px">${catPill(g.cat, g.axis)}<span class="pill">⏱ ${g.info(lvl)}</span><span class="pill">${gauge(LEVELS[lvl].g)} ${LEVELS[lvl].name}</span>${rec != null ? `<span class="pill">🏆 ${rec}</span>` : ''}</div>
+    ${bil ? `<p class="small bil-note">${S.chrono ? '⏱ Bilan contre la montre' : '🌿 Bilan sans chrono'} · le réglage reste le même jusqu’à la fin du bilan.</p>` : !['duel', 'turbo', 'family'].includes(S.mode) ? chronoSwitch() : ''}
     <div class="spacer"></div>
     ${done ? `<button class="btn go" id="go">On y va !</button><button class="btn secondary" id="try">Refaire l’essai</button>`
       : `<button class="btn go" id="try">Essayer sans chrono</button><button class="btn ghost light" id="go">Passer l’essai</button>`}
@@ -384,29 +411,29 @@ function practiceDone(g) {
   Clock.reset(); store.set(tutoKey(g), true); SFX('end');
   app.innerHTML = `<div class="screen play result">${scene(g.id)}
     <div class="card">${MECHE.replace('data-mood="neutral"', 'data-mood="happy"')}<h2>Tu as compris !</h2>
-    <p style="font-weight:500">Le vrai jeu commence maintenant${settings.chrono ? ', avec le chrono' : ', à ton rythme'}.</p>${rulesHTML(g, S.level)}</div>
+    <p style="font-weight:500">Le vrai jeu commence maintenant${chronoOn() ? ', avec le chrono' : ', à ton rythme'}.</p>${rulesHTML(g, S.level)}</div>
     <div class="spacer"></div><button class="btn go" id="go">C’est parti !</button><button class="btn secondary" id="again">Refaire l’essai</button></div>`;
   on('#go', 'click', () => play(g, false));
   on('#again', 'click', () => play(g, true));
 }
 function confirmLeave(inGame) {
   if (inGame) Clock.paused = true;
-  const fam = S && S.mode === 'family', multi = S && !['train', 'duel', 'turbo'].includes(S.mode);
+  const fam = S && S.mode === 'family', multi = S && !['train', 'duel', 'turbo'].includes(S.mode), bil = S && S.mode === 'bilan';
   const practice = CUR && CUR.practice && !CUR.over;
   const canSkip = inGame && multi && CUR && !CUR.over && !practice;
   const g = S && S.games[S.idx];
   sheet(`
-    <h2>${inGame ? 'Pause' : fam ? 'Arrêter la partie ?' : 'Tu quittes ?'}</h2>
+    <h2>${inGame ? 'Pause' : fam ? 'Arrêter la partie ?' : bil ? 'Pause du bilan ?' : 'Tu quittes ?'}</h2>
     ${inGame && g ? `<details class="rev"><summary>Revoir la consigne</summary>${rulesHTML(g, S.level)}${exampleHTML(g, S.level)}</details>` : ''}
-    <p class="muted">${practice ? 'C’est l’essai : rien n’est compté.' : inGame ? (canSkip ? 'Tu peux reprendre, passer cette épreuve (elle comptera 0) ou tout arrêter.' : 'Si tu arrêtes, ce score ne sera pas gardé.') : fam ? 'Les scores de la partie seront perdus.' : S && S.mode === 'solo' && S.idx > 0 ? 'Le test complet sera interrompu.' : 'Tu reviendras quand tu veux.'}</p>
+    <p class="muted">${practice ? 'C’est l’essai : rien n’est compté.' : bil ? (inGame ? 'Tu peux reprendre, passer cette épreuve (elle comptera 0 et le bilan sera marqué « incomplet ») ou faire une pause : ton bilan est gardé, tu reprendras à ce jeu.' : `Ton bilan est gardé (${S.idx}/${S.games.length}). Tu le reprendras depuis l’accueil, pendant 7 jours.`) : inGame ? (canSkip ? 'Tu peux reprendre, passer cette épreuve (elle comptera 0, sans record) ou tout arrêter.' : 'Si tu arrêtes, ce score ne sera pas gardé.') : fam ? 'Les scores de la partie seront perdus.' : S && S.mode !== 'train' && S.idx > 0 ? 'La partie en cours sera interrompue.' : 'Tu reviendras quand tu veux.'}</p>
     <button class="btn go" id="cont">${inGame ? 'Reprendre' : 'Rester'}</button>
     ${practice ? '<button class="btn secondary" id="endp">Terminer l’essai</button>' : ''}
     ${canSkip ? '<button class="btn secondary" id="skip">Passer cette épreuve</button>' : ''}
-    <button class="btn ${canSkip || practice ? 'ghost' : 'secondary'}" id="stop">${inGame && !multi ? 'Arrêter l’épreuve' : fam ? 'Arrêter la partie' : multi ? 'Arrêter le test' : 'Quitter'}</button>
+    <button class="btn ${canSkip || practice ? 'ghost' : 'secondary'}" id="stop">${inGame && !multi ? 'Arrêter l’épreuve' : fam ? 'Arrêter la partie' : bil ? 'Pause : je reprendrai plus tard' : multi ? 'Arrêter le test' : 'Quitter'}</button>
   `, (root, close) => {
     on('#cont', 'click', () => { close(); Clock.paused = false; }, root);
     on('#endp', 'click', () => { close(); Clock.paused = false; CUR.over = true; practiceDone(g); }, root);
-    on('#skip', 'click', () => { close(); Clock.paused = false; CUR.done(0, 'Épreuve passée'); }, root);
+    on('#skip', 'click', () => { close(); Clock.paused = false; CUR.done(0, 'Épreuve passée', true); }, root);
     on('#stop', 'click', () => { close(); const back = home; Clock.reset(); back(); }, root);
   });
 }
@@ -426,13 +453,13 @@ function play(g, practice) {
   window.scrollTo(0, 0);
   const stage = $('#stage'), fill = $('#fill'), secs = $('#secs'), fuse = $('#fuse'), sc = $('#sc'), tip = $('#tip'), T = TUTOS[g.id];
   on('#x', 'click', () => confirmLeave(true));
-  const noChrono = !practice && !settings.chrono && !['duel', 'turbo', 'family'].includes(S.mode);
+  const noChrono = !practice && !chronoOn() && !['duel', 'turbo', 'family'].includes(S.mode);
   Clock.rate = S.mode === 'duel' ? 1 : prof().rate * (S.mode === 'family' ? 1 : 1);
   if (S.mode === 'family') { const pl = currentPlayer(); Clock.rate = (PROFILES[pl && pl.profile] || PROFILES.classic).rate; }
   if (noChrono) fuse.classList.add('nochrono');
   Clock.start();
   const rng = makeRng(hashStr(S.seed + ':' + g.id + ':' + S.level + (practice ? ':essai' : '')));
-  let goods = 0, lastInput = 0, tipT = null;
+  let goods = 0, lastInput = 0, tipT = null, nOk = 0, nKo = 0;
   const say = (txt, ms = 2600) => { tip.textContent = txt; tip.classList.add('show'); clearTimeout(tipT); tipT = setTimeout(() => tip.classList.remove('show'), ms); };
   if (practice) {
     stage.addEventListener('pointerdown', () => { lastInput = Clock.t; $$('.hint', stage).forEach(e => e.classList.remove('hint')); }, true);
@@ -452,7 +479,7 @@ function play(g, practice) {
   const c = CUR = {
     stage, level: S.level, mode: S.mode, rng, over: false, practice: !!practice, rate: Clock.rate || 1,
     L: o => o[S.level],
-    tm: ms => ms * (settings.moreTime ? 1.5 : 1) * (practice ? 1.6 : 1) * (turbo ? Math.max(0.55, 1 - Math.max(0, Clock.t - 2100) / 60000 * 0.9) : 1),
+    tm: ms => ms * (moreTimeOn() ? 1.5 : 1) * (practice ? 1.6 : 1) * (turbo ? Math.max(0.55, 1 - Math.max(0, Clock.t - 2100) / 60000 * 0.9) : 1),
     later: (fn, ms) => Clock.later(fn, ms),
     cancel: id => Clock.cancel(id),
     now: () => Clock.t,
@@ -476,6 +503,7 @@ function play(g, practice) {
       return () => { if (!fired) { fired = true; off(); } };
     },
     good(el, word) {
+      nOk++;
       if (S.mode === 'duel' && !practice) { S.duelGood = (S.duelGood || 0) + 1; duelSync(); }
       haptic(15); SFX('ok'); mood($('#hm'), 'happy', 700);
       if (el) { fx(el, 'ok-fx'); burst(el, true); }
@@ -483,17 +511,22 @@ function play(g, practice) {
       if (practice) { goods++; if (goods >= T.goal && !c.over) { c.over = true; Clock.later(() => practiceDone(g), 700); } else say(['Bien !', 'C’est ça !', 'Parfait.', 'Oui !'][goods % 4], 1200); }
     },
     bad(el) {
+      nKo++;
       if (S.mode === 'duel' && !practice) { S.duelBad = (S.duelBad || 0) + 1; duelSync(); }
       haptic([30, 40, 30]); SFX('ko'); mood($('#hm'), 'surprised', 700);
       if (el) { fx(el, 'ko-fx'); burst(el, false); }
       if (practice) say(T.oops, 3200);
     },
-    done(raw, detail) {
+    done(raw, detail, skipped) {
       if (c.over) return; c.over = true;
       if (practice) { if (goods >= T.goal) practiceDone(g); else practiceRetry(g); return; }
       Clock.reset();
-      const score = Math.round(Math.max(0, Math.min(100, raw)));
-      gameEnd(g, score, detail);
+      let sc = Math.max(0, Math.min(100, raw));
+      /* Anti-hasard : plus de 4 erreurs et moins de 60 % de réponses justes → score fortement réduit (taper au hasard ne paie plus) */
+      const acc = nOk + nKo ? nOk / (nOk + nKo) : 1;
+      if (nKo > 4 && acc < 0.6) { sc *= Math.max(0, Math.min(1, (acc - 0.3) / 0.3)); detail = (detail ? detail + ' · ' : '') + `précision ${Math.round(acc * 100)} %`; }
+      const score = skipped ? 0 : Math.round(sc);
+      gameEnd(g, score, detail, !!skipped);
     }
   };
   let n = 3;
@@ -512,14 +545,17 @@ function phrase(score) {
   return pick(['Échauffement terminé. On retente ?', 'Pas facile, celle-là. Elle demande un peu d’entraînement.', 'Prends le temps de relire la consigne et retente.']);
 }
 
-function gameEnd(g, score, detail) {
+function gameEnd(g, score, detail, skipped) {
   S.scores[g.id] = score; S.details[g.id] = detail;
   if (S.mode === 'duel') return duelEnd(g, score, detail);
-  if (!['family', 'duel', 'turbo'].includes(S.mode)) { const dl = store.get('dlog', {}); const k = today(); dl[k] = dl[k] || { s: 0, n: 0, lv: S.level }; dl[k].s += score; dl[k].n++; dl[k].lv = S.level; const keys = Object.keys(dl).sort().slice(-30); store.set('dlog', Object.fromEntries(keys.map(x => [x, dl[x]]))); }
-  if (S.mode !== 'family') { const gh = store.get('gh', {}); (gh[g.id] = gh[g.id] || []).push(score); gh[g.id] = gh[g.id].slice(-30); store.set('gh', gh); }
-  if (S.mode === 'turbo') { const pv = store.get('turbo:' + g.id, null); if (pv == null || score > pv) store.set('turbo:' + g.id, score); if (score >= 70) award('turbo70'); }
+  if (S.mode === 'bilan') { if (skipped) S.skipped = [...new Set([...(S.skipped || []), g.id])]; else S.skipped = (S.skipped || []).filter(x => x !== g.id); S.idx++; saveRun(); }
+  /* Épreuve passée ou défi rejoué : rien n'est enregistré (ni historique, ni record) */
+  const counts = !skipped && !(S.mode === 'daily' && S.replay);
+  if (counts && !['family', 'duel', 'turbo'].includes(S.mode)) { const gh = store.get('gh', {}); (gh[g.id] = gh[g.id] || []).push(score); gh[g.id] = gh[g.id].slice(-30); store.set('gh', gh); }
+  if (S.mode === 'turbo' && counts) { const pv = store.get('turbo:' + g.id, null); if (pv == null || score > pv) store.set('turbo:' + g.id, score); if (score >= 70) award('turbo70'); }
+  if (S.mode === 'bilan') return bilanStep(g, score, detail, skipped);
   let prev = null, rec = false;
-  if (!['family', 'turbo'].includes(S.mode)) {
+  if (counts && !['family', 'turbo'].includes(S.mode)) {
     prev = store.get(recKey(g.id, S.level), null);
     rec = prev == null || score > prev;
     if (rec) store.set(recKey(g.id, S.level), score);
@@ -570,9 +606,11 @@ function profileOf(scores, games) {
 function soloFinal() {
   const total = totalOf(S.scores, S.games), pf = profileOf(S.scores, S.games);
   const th = S.theme && THEMES[S.theme];
-  const prev = th ? null : store.get('best:' + S.level, null), rec = !th && (prev == null || total > prev);
-  if (rec) store.set('best:' + S.level, total);
-  const hist = store.get('hist', []); hist.push({ d: today(), t: Date.now(), kind: th ? 'theme' : S.mode, level: S.level, score: total, sp: pf.sp, lo: pf.lo }); store.set('hist', hist.slice(-300));
+  /* Hors grand bilan : rien ne compte dans la progression. Le défi du jour garde son record (sauf s'il est rejoué). */
+  const counts = S.mode === 'daily' && !S.replay;
+  const prev = counts ? store.get('best:daily', null) : null, rec = counts && (prev == null || total > prev);
+  if (rec) store.set('best:daily', total);
+  const hist = store.get('hist', []); if (!(S.mode === 'daily' && S.replay)) { hist.push({ d: today(), t: Date.now(), kind: th ? 'theme' : S.mode, level: S.level, score: total }); store.set('hist', hist.slice(-300)); }
   let dailyMsg = '', jokerMsg = '', stD = null;
   if (S.mode === 'daily' && !S.replay) {
     stD = markDaily(total); dailyMsg = `🔥 Série : ${stD.n} jour${stD.n > 1 ? 's' : ''} d’affilée${stD.n >= 3 ? ' · Bonus de série !' : ''}`; if (total >= 80) award('score80');
@@ -580,15 +618,15 @@ function soloFinal() {
   }
   if (S.mode === 'daily' && !stD) stD = streakNow();
   const md = medalOf(total), nxt = total < 40 ? [40, 'le bronze'] : total < 60 ? [60, 'l’argent'] : total < 80 ? [80, 'l’or'] : null;
-  const nextLvl = S.level === 'F' && total >= 70 ? ' Essaie « En forme » la prochaine fois ?' : S.level === 'N' && total >= 70 ? ' Prêt pour « Costaud » ?' : '';
+  const nextLvl = S.levels ? '' : S.level === 'F' && total >= 70 ? ' Essaie « En forme » la prochaine fois ?' : S.level === 'N' && total >= 70 ? ' Prêt pour « Costaud » ?' : '';
   app.innerHTML = `<div class="screen play result">${scene('constellation')}
-    <div class="card">${md ? medalSVG(md) : MECHE}<p class="muted" style="margin:0">${S.mode === 'daily' ? 'Défi du jour' + (S.replay ? ' (rejoué, hors série)' : '') : th ? `Parcours ${th.name}` : 'Jouer seul'} · ${LEVELS[S.level].name}</p>
+    <div class="card">${md ? medalSVG(md) : MECHE}<p class="muted" style="margin:0">${S.mode === 'daily' ? 'Défi du jour' + (S.replay ? ' (rejoué, hors série)' : '') : th ? `Parcours ${th.name}` : 'Partie'} · ${S.levels ? 'niveau de chaque catégorie' : LEVELS[S.level].name}</p>
     <div class="bigscore" id="tot">0<small> / 100</small></div>
     <p style="font-weight:700;margin:0">${md ? MEDALS[md][2] : 'Pas encore de médaille'}${rec && prev != null ? ' · 🏆 Nouveau record !' : ''}</p>
     ${dailyMsg ? `<p class="streakline">${dailyMsg}</p>` : ''}
     ${jokerMsg ? `<div class="coach joker-msg">${MECHE.replace('data-mood="neutral"', 'data-mood="happy"')}<div class="bubble">${jokerMsg}</div></div>` : ''}
-    ${sparkline(hist.slice(-12).map(h => h.score))}
     <p class="muted small">${nxt ? `Encore ${nxt[0] - total} point${nxt[0] - total > 1 ? 's' : ''} pour ${nxt[1]}.` : 'Le sommet de l’archipel !'} ${pf.label}.${nextLvl}</p>
+    <p class="small muted">Cette partie ne change pas ta courbe de progrès : seul le grand bilan compte.</p>
     <div class="split"><div class="sp">⚡ Rapidité<b>${pf.sp}</b></div><div class="lo">⚙ Logique<b>${pf.lo}</b></div></div>
     <div class="isles">${S.games.map(g => { const s = S.scores[g.id] || 0; return `<span class="isle-w" title="${g.name} : ${s}/100"><span class="isle" aria-hidden="true">${g.icon}<em>${'★'.repeat(starsOf(s)) || s}</em></span><small>${g.short || g.name}</small><span class="sr">${g.name} : ${s} sur 100</span></span>`; }).join('')}</div></div>
     ${S.mode === 'daily' ? '<button class="btn accent share-btn" id="share" style="margin-top:16px">📤 Partager mon score</button>' : ''}
@@ -642,7 +680,7 @@ function familySetup(prevNames) {
   Clock.reset();
   const saved = prevNames || store.get('famNames', ['', '']);
   let names = saved.length >= 2 ? saved.slice(0, 4) : ['', ''];
-  let format = store.get('famFormat', 'quick'), lvl = settings.level, profs = store.get('famProfiles', []);
+  let format = store.get('famFormat', 'quick'), lvl = store.get('famLevel', settings.level), profs = store.get('famProfiles', []);
   const PK = Object.keys(PROFILES);
   function render() {
     screen(`
@@ -673,7 +711,7 @@ function familySetup(prevNames) {
       sync();
       const list = names.map((n, i) => ({ name: n.trim(), i })).filter(p => p.name);
       if (list.length < 2) return;
-      store.set('famNames', names); store.set('famFormat', format); settings.level = lvl; saveSettings();
+      store.set('famNames', names); store.set('famFormat', format); store.set('famLevel', lvl); // ne touche plus au niveau du joueur
       startFamily(list.map((p, k) => ({ name: p.name, i: k, profile: profs[p.i] || 'classic', scores: {}, total: 0 })), format, lvl);
     });
     sync();
@@ -778,6 +816,8 @@ function markDaily(score) {
   return { ...st, joker };
 }
 const BADGES = [
+  ['bilan1', '📊', 'Premier bilan', 'Terminer un grand bilan'],
+  ['bilan10', '🗺️', 'Dix bilans', 'Terminer 10 grands bilans'],
   ['premier-defi', '🌅', 'Premier défi', 'Réussir un défi du jour'],
   ['serie3', '🔥', 'Série de 3', 'Jouer le défi 3 jours d’affilée'],
   ['serie7', '🔥', 'Semaine de feu', '7 jours d’affilée'],
@@ -803,9 +843,9 @@ function checkCollectionBadges() {
   const three = GAMES.filter(g => ['F', 'N', 'E'].some(l => (store.get(recKey(g.id, l), -1)) >= 85)).length;
   if (three >= 5) award('etoiles5');
 }
-function sparkline(vals, w = 300, h = 70) {
+function sparkline(vals, w = 300, h = 70, lo = 0, hi = 100) {
   if (vals.length < 2) return '';
-  const x = i => 8 + i * (w - 16) / (vals.length - 1), y = v => h - 8 - v * (h - 16) / 100;
+  const x = i => 8 + i * (w - 16) / (vals.length - 1), y = v => h - 8 - (v - lo) * (h - 16) / Math.max(1, hi - lo);
   const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   return `<svg class="spark" viewBox="0 0 ${w} ${h}" role="img" aria-label="Évolution des derniers scores"><polyline points="${pts}" fill="none" stroke="var(--chart-a)" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>${vals.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="${i === vals.length - 1 ? 6 : 3.5}" fill="${i === vals.length - 1 ? 'var(--chart-end)' : 'var(--chart-dot)'}"/>`).join('')}</svg>`;
 }
@@ -821,32 +861,7 @@ function dailyGames() {
 }
 function startDaily() {
   const d = store.get('daily', {}), replay = d.d === today();
-  S = { mode: 'daily', level: settings.level, seed: hashStr('jour:' + today()), games: dailyGames(), idx: 0, scores: {}, details: {}, replay };
-  intro();
-}
-/* 8 jeux : une compétence différente par jeu tant que possible (7 compétences → 1 doublon au plus),
-   jamais deux jeux trop proches, 4 de rapidité et 4 de logique si possible, en alternance. */
-function expressGames(r, n = 8) {
-  let best = null, bestCost = Infinity;
-  for (let t = 0; t < 60 && bestCost > 0; t++) {
-    const pool = r.shuffle(GAMES.slice()), out = [];
-    for (const g of pool) if (out.length < n && pairOk(out, g) && !out.some(x => x.skill === g.skill)) out.push(g);
-    while (out.length < n) {
-      const cnt = g => out.filter(x => x.skill === g.skill).length;
-      const cand = pool.filter(g => !out.includes(g) && pairOk(out, g)).sort((a, b) => cnt(a) - cnt(b));
-      if (!cand.length) break; out.push(cand[0]);
-    }
-    const sp = out.filter(g => g.cat === 'speed').length, dup = out.length - new Set(out.map(g => g.skill)).size;
-    const cost = 10 * Math.max(0, dup - Math.max(0, n - Object.keys(SKILLS).length)) + Math.abs(sp - (out.length - sp));
-    if (cost < bestCost) { best = out; bestCost = cost; }
-  }
-  const sp = best.filter(g => g.cat === 'speed'), lo = best.filter(g => g.cat === 'logic'), games = [];
-  while (sp.length || lo.length) { if (sp.length) games.push(sp.shift()); if (lo.length) games.push(lo.shift()); }
-  return games;
-}
-function startExpress(level) {
-  const games = expressGames(makeRng(newSeed()));
-  S = { mode: 'solo', level, seed: newSeed(), games, idx: 0, scores: {}, details: {} };
+  S = { mode: 'daily', level: settings.level, baseLevel: clampLevel(settings.level), levels: curLevels(), seed: hashStr('jour:' + today()), games: dailyGames(), idx: 0, scores: {}, details: {}, replay };
   intro();
 }
 /* Parcours thématique : 5 jeux de la compétence choisie, complétés par des jeux proches */
@@ -857,7 +872,7 @@ function themeGames(r, k, n = 5) {
   return out;
 }
 function themeSheet() {
-  sheet(`<h2>Parcours thématique</h2><p class="small muted" style="margin:-4px 0 12px">5 jeux qui font travailler la même compétence. Même écran de fin que « Jouer seul ».</p>
+  sheet(`<h2>Parcours thématique</h2><p class="small muted" style="margin:-4px 0 12px">5 jeux qui font travailler la même compétence, pour s’entraîner (hors progression).</p>
     <div class="profs">${Object.entries(THEMES).map(([k, t]) => `<button class="prof" data-th="${k}"><span class="pi">${t.icon}</span><span><b>${t.name}</b><small>${t.sub}</small></span></button>`).join('')}</div>
     <button class="btn ghost" id="cancel">Annuler</button>`, (root, close) => {
     $$('[data-th]', root).forEach(b => b.addEventListener('click', () => {
@@ -873,6 +888,246 @@ function startTheme(k, level, games) {
   S = { mode: 'solo', theme: k, level, seed: newSeed(), games: games || themeGames(makeRng(newSeed()), k), idx: 0, scores: {}, details: {} };
   intro();
 }
+/* =========================================================
+   LE GRAND BILAN : 18 jeux fixes, 6 catégories × 3, toujours dans le même ordre
+   ========================================================= */
+const BILAN_TTL = 7 * 864e5;
+const fmtD = d => { const [y, m, j] = String(d).split('-'); return `${j}/${m}`; };
+const bilanGames = () => BILAN_IDS.map(id => GAMES.find(g => g.id === id));
+const myProfile = () => settings.profile || 'classic';
+function myBilans() { return store.get('bilans', []).filter(b => b && b.profile === myProfile() && b.axes); }
+function rawRun() { const r = store.get('bilanRun', null); return r && r.profile === myProfile() && r.idx < BILAN_IDS.length ? r : null; }
+function bilanRun() { const r = rawRun(); return r && Date.now() - r.t < BILAN_TTL ? r : null; }
+function bilanExpired() { const r = rawRun(); return !!r && Date.now() - r.t >= BILAN_TTL; }
+function saveRun() {
+  store.set('bilanRun', { v: 1, t: S.start, profile: S.profile, seed: S.seed, idx: S.idx, scores: S.scores, details: S.details, skipped: S.skipped || [], levels: S.levels, chrono: S.chrono, moreTime: S.moreTime });
+}
+function axisAvg(scores, a) { return Math.round(AXES[a].games.reduce((s, id) => s + (scores[id] || 0), 0) / AXES[a].games.length); }
+function levelsLine(levels) { return AX_ORDER.map(a => `<span class="lv-it">${AXES[a].icon} ${gauge(LEVELS[levels[a]].g)}<span class="sr">${AXES[a].name} : ${LEVELS[levels[a]].name}</span></span>`).join(''); }
+
+function bilanSheet() {
+  const exp = bilanExpired(), lv = curLevels();
+  const render = () => `<h2>Le grand bilan</h2>
+    <p class="small muted" style="margin:-4px 0 10px">18 jeux, toujours les mêmes et dans le même ordre, pour comparer d’un bilan à l’autre. Compte <b>20 à 25 minutes</b>. Tu peux faire une pause après chaque jeu.</p>
+    ${exp ? '<p class="small bil-warn">Ton bilan commencé il y a plus de 7 jours a expiré : on repart de zéro.</p>' : ''}
+    <ul class="bil-cats">${AX_ORDER.map(a => `<li><span class="bc-ic" aria-hidden="true">${AXES[a].icon}</span><span><b>${AXES[a].name}</b><small>${AXES[a].games.map(id => GAMES.find(g => g.id === id).short).join(' · ')}</small></span><span class="bc-lv">${gauge(LEVELS[lv[a]].g)}<small>${LEVELS[lv[a]].name}</small></span></li>`).join('')}</ul>
+    <p class="small muted" style="margin:8px 2px 0">${settings.autoLevel ? 'Chaque catégorie a son niveau, qui évolue après chaque bilan.' : 'Niveau fixe pour toutes les catégories (réglages ⚙).'} Profil ${prof().icon} ${prof().name}.</p>
+    ${chronoSwitch()}
+    <button class="btn go" id="go" style="margin-top:16px">C’est parti</button><button class="btn ghost" id="cancel">Annuler</button>`;
+  sheet(render(), (root, close) => {
+    const bind = () => { bindChrono(root, () => { root.querySelector('.sheet').innerHTML = render(); bind(); }); on('#go', 'click', () => { close(); startBilan(); }, root); on('#cancel', 'click', close, root); };
+    bind(); root.addEventListener('click', e => { if (e.target === root) close(); });
+  });
+}
+function startBilan() {
+  S = { mode: 'bilan', start: Date.now(), profile: myProfile(), seed: newSeed(), games: bilanGames(), idx: 0, scores: {}, details: {}, skipped: [], levels: curLevels(), chrono: !!settings.chrono, moreTime: !!settings.moreTime };
+  saveRun(); bilanStep(null);
+}
+function resumeBilan() {
+  const r = bilanRun(); if (!r) { bilanSheet(); return; }
+  S = { mode: 'bilan', start: r.t, profile: r.profile, seed: r.seed, games: bilanGames(), idx: r.idx, scores: r.scores || {}, details: r.details || {}, skipped: r.skipped || [], levels: r.levels, chrono: r.chrono, moreTime: r.moreTime };
+  bilanStep(null);
+}
+/* Écran entre deux jeux : score du jeu fini, avancée de la catégorie, jeu suivant */
+function bilanStep(g, score, detail, skipped) {
+  Clock.reset(); window.scrollTo(0, 0);
+  let prev = null, rec = false;
+  if (g && !skipped) { prev = store.get(recKey(g.id, S.level), null); rec = prev == null || score > prev; if (rec) store.set(recKey(g.id, S.level), score); checkCollectionBadges(); }
+  if (S.idx >= S.games.length) return bilanFinal();
+  const nx = S.games[S.idx], N = S.games.length;
+  syncLevel();
+  const ax = g && g.axis, k = ax ? AXES[ax].games.filter(id => S.games.findIndex(x => x.id === id) < S.idx).length : 0;
+  const dots = `<div class="prog bil-prog" role="img" aria-label="${S.idx} jeux faits sur ${N}">${S.games.map((x, i) => `<i class="${i < S.idx ? 'd' : i === S.idx ? 'c' : ''}"></i>`).join('')}</div>`;
+  const n = g ? starsOf(score) : 0, known = store.get(tutoKey(nx), false);
+  app.innerHTML = `<div class="screen play result bil-step">${scene(nx.id)}
+    <div class="topbar"><button class="iconbtn" id="x" aria-label="Pause du bilan">✕</button><span class="plaque small" style="margin-left:auto">Grand bilan · ${S.idx}/${N}</span></div>
+    <div class="card">
+      ${g ? `<p class="bs-cat">${AXES[ax].icon} ${AXES[ax].name} : <b>${k}/3</b></p>
+        <h2>${g.icon} ${g.name}</h2>
+        ${skipped ? '<p class="muted">Jeu passé : il compte 0 et ce bilan sera marqué « incomplet ».</p>' : `${starsHTML(n)}<div class="bigscore bs-score" id="bs">0<small> / 100</small></div><p class="muted small" style="margin:2px 0 0">${esc(detail || '')}</p>${rec && prev != null ? `<div class="recband">🏆 Nouveau record ! (avant : ${prev})</div>` : ''}`}`
+      : `<div class="coach bs-hi">${MECHE.replace('data-mood="neutral"', 'data-mood="happy"')}<div class="bubble">${S.idx ? `On reprend où tu t’étais arrêté : ${S.idx} jeu${S.idx > 1 ? 'x' : ''} sur ${N} déjà faits.` : 'C’est parti pour 18 jeux, 3 par catégorie. Je t’explique chaque jeu la première fois.'}</div></div>`}
+      ${dots}
+    </div>
+    <div class="card bs-next" style="--c:${nx.color}">
+      <p class="bs-lab">Jeu suivant · ${S.idx + 1}/${N}</p>
+      <div class="bs-row"><span class="gr-ic" style="--c:${nx.color}">${nx.icon}</span><span class="gr-tx"><b>${nx.name}</b><small>${WHAT[nx.id]}</small></span></div>
+      <div class="chips" style="margin-top:10px;justify-content:flex-start">${catPill(nx.cat, nx.axis)}<span class="pill">${gauge(LEVELS[S.level].g)} ${LEVELS[S.level].name}</span></div>
+      ${known ? '<p class="small muted" style="margin:8px 0 0">Tu connais déjà ce jeu : on passe directement à la partie.</p>' : ''}
+    </div>
+    <div class="spacer"></div>
+    <button class="btn go" id="cont" style="margin-top:16px">Continuer</button>
+    <button class="btn secondary" id="pause">Pause</button></div>`;
+  if (g && !skipped) { countUp($('#bs'), score, '<small> / 100</small>'); if (rec && prev != null) { SFX('record'); confetti(30); } else SFX('end'); }
+  const pause = () => { const i = S.idx; saveRun(); home(); toast('⏸', 'Bilan en pause', `Reprends-le depuis l’accueil (${i}/${N}).`); };
+  on('#x', 'click', pause); on('#pause', 'click', pause);
+  on('#cont', 'click', () => { SFX('tap'); if (store.get(tutoKey(nx), false)) play(nx, false); else intro(); });
+}
+/* Score de chaque catégorie, niveaux qui évoluent, sauvegarde du bilan */
+function bilanFinal() {
+  Clock.reset();
+  const axes = Object.fromEntries(AX_ORDER.map(a => [a, axisAvg(S.scores, a)]));
+  const global = Math.round(AX_ORDER.reduce((s, a) => s + axes[a], 0) / AX_ORDER.length);
+  const incomplete = (S.skipped || []).length > 0;
+  const before = myBilans(), prevB = before[before.length - 1] || null;
+  const changes = [];
+  if (!incomplete && settings.autoLevel) {
+    const p = PROFILES[S.profile] || prof();
+    initLevels();
+    AX_ORDER.forEach(a => {
+      const cur = S.levels[a], i = LV_ORDER.indexOf(cur);
+      let nl = cur;
+      /* Il faut 2 bilans d'affilée au-dessus de 78 (ou sous 42) pour changer de niveau : moins de yo-yo */
+      const pv = prevB && !prevB.incomplete && prevB.levels[a] === cur ? prevB.axes[a] : null;
+      if (axes[a] >= 78 && pv != null && pv >= 78) nl = clampLevel(LV_ORDER[Math.min(2, i + 1)], p);
+      else if (axes[a] < 42 && pv != null && pv < 42) nl = clampLevel(LV_ORDER[Math.max(0, i - 1)], p);
+      settings.levels[a] = nl;
+      if (nl !== cur) changes.push({ a, from: cur, to: nl, up: LV_ORDER.indexOf(nl) > i });
+    });
+    saveSettings();
+  }
+  const b = { d: today(), t: Date.now(), profile: S.profile, chrono: !!S.chrono, moreTime: !!S.moreTime, levels: { ...S.levels }, axes, games: { ...S.scores }, global };
+  if (incomplete) { b.incomplete = true; b.skipped = S.skipped.slice(); }
+  const all = store.get('bilans', []); all.push(b); store.set('bilans', all.slice(-200));
+  store.set('bilanRun', null);
+  award('bilan1'); if (myBilans().length >= 10) award('bilan10');
+  bilanBoard(b, prevB, changes, all.length);
+}
+function radarSVG(b, prev) {
+  const W = 380, H = 286, cx = 190, cy = 146, R = 92;
+  const pt = (i, v) => { const an = -Math.PI / 2 + i * Math.PI / 3; return [cx + Math.cos(an) * R * v / 100, cy + Math.sin(an) * R * v / 100]; };
+  const poly = vals => vals.map((v, i) => pt(i, Math.max(4, v)).map(n => n.toFixed(1)).join(',')).join(' ');
+  const rings = [25, 50, 75, 100].map(v => `<polygon points="${poly(AX_ORDER.map(() => v))}" fill="none" stroke="var(--chart-grid)" stroke-width="${v === 100 ? 2 : 1.2}"/>`).join('');
+  const spokes = AX_ORDER.map((_, i) => { const [x, y] = pt(i, 100); return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--chart-grid)" stroke-width="1.2"/>`; }).join('');
+  const labels = AX_ORDER.map((a, i) => { const [x, y] = pt(i, 122), anc = Math.abs(x - cx) < 4 ? 'middle' : x > cx ? 'start' : 'end', dy = y < cy - 60 ? -14 : y > cy + 60 ? 12 : -2;
+    return `<text x="${x.toFixed(1)}" y="${(y + dy).toFixed(1)}" text-anchor="${anc}" font-size="16" font-weight="800" fill="var(--txt)">${AXES[a].icon} ${b.axes[a]}<tspan x="${x.toFixed(1)}" dy="15" font-size="12" font-weight="700" fill="var(--chart-txt)">${AXES[a].short}</tspan></text>`; }).join('');
+  const cur = AX_ORDER.map(a => b.axes[a]);
+  const lab = `Radar de tes 6 catégories : ${AX_ORDER.map(a => `${AXES[a].name} ${b.axes[a]} sur 100`).join(', ')}${prev ? '. En pointillés : le bilan précédent' : ''}.`;
+  return `<svg class="radar" viewBox="0 0 ${W} ${H}" role="img" aria-label="${lab}">${rings}${spokes}
+    ${prev ? `<polygon points="${poly(AX_ORDER.map(a => prev.axes[a]))}" fill="none" stroke="var(--chart-b)" stroke-width="2.5" stroke-dasharray="6 5" stroke-linejoin="round"/>` : ''}
+    <polygon points="${poly(cur)}" fill="var(--chart-a)" fill-opacity=".22" stroke="var(--chart-a)" stroke-width="3" stroke-linejoin="round"/>
+    ${cur.map((v, i) => { const [x, y] = pt(i, Math.max(4, v)); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.5" fill="var(--chart-a)"/>`; }).join('')}${labels}</svg>`;
+}
+const delta = (v, p) => { if (p == null) return ''; const d = v - p; return `<span class="dl ${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '↗ +' + d : d < 0 ? '↘ ' + d : '→ 0'}</span>`; };
+function barsHTML(b, prev) {
+  return `<div class="axbars">${AX_ORDER.map(a => `<div class="axrow"><span class="ax-n">${AXES[a].icon} ${AXES[a].name}<small>niveau de jeu : ${LEVELS[b.levels[a]].name}</small></span>
+    <span class="ax-t" aria-hidden="true"><i style="width:${b.axes[a]}%"></i></span><span class="ax-v"><b>${b.axes[a]}</b>${delta(b.axes[a], prev && prev.axes[a])}</span></div>`).join('')}</div>`;
+}
+function strongWeak(b) {
+  const s = AX_ORDER.slice().sort((x, y) => b.axes[y] - b.axes[x]), hi = s[0], lo = s[5];
+  return `<div class="sw-lines"><p>💪 <b>Point fort :</b> ${AXES[hi].icon} ${AXES[hi].name} (${b.axes[hi]})</p><p>🎯 <b>À travailler :</b> ${AXES[lo].icon} ${AXES[lo].name} (${b.axes[lo]})</p></div>`;
+}
+function mecheSays(b) {
+  const s = AX_ORDER.slice().sort((x, y) => b.axes[y] - b.axes[x]), hi = s[0], lo = s[5], A = AXES;
+  const pick = arr => arr[b.t % arr.length];
+  if (b.axes[hi] - b.axes[lo] < 8) return pick([`Tout est bien équilibré : aucune catégorie ne traîne derrière. Prochaine étape, faire monter l’ensemble !`, `Joli équilibre : tes six catégories sont dans un mouchoir de poche.`]);
+  const tip = `Les jeux ${A[lo].games.map(id => `« ${GAMES.find(g => g.id === id).short} »`).join(', ')} t’attendent dans la liste pour t’entraîner.`;
+  return pick([
+    `Ton point fort, c’est ${A[hi].name.toLowerCase()} (${b.axes[hi]}). Ce qui peut encore grimper : ${A[lo].name.toLowerCase()} (${b.axes[lo]}). ${tip}`,
+    `Bravo pour ${A[hi].name.toLowerCase()}, c’est là que tu brilles avec ${b.axes[hi]}. À travailler : ${A[lo].name.toLowerCase()}, à ${b.axes[lo]}. ${tip}`,
+    `${A[hi].icon} ${A[hi].name} en tête avec ${b.axes[hi]} ! Côté ${A[lo].name.toLowerCase()} (${b.axes[lo]}), il y a de la marge. ${tip}`
+  ]);
+}
+const sameLevels = (a, b) => AX_ORDER.every(x => a.levels[x] === b.levels[x]);
+function bilanShareText(b) {
+  const L = a => `${AXES[a].icon} ${b.axes[a]}`;
+  return `MindSprint · Mon grand bilan du ${fmtD(b.d)} · ${b.global}/100\n${['calc', 'logic', 'reason'].map(L).join(' · ')}\n${['observe', 'memory', 'speed'].map(L).join(' · ')}\n${SHARE_URL}`;
+}
+function detailHTML(b) {
+  return `<details class="rev bl-det"><summary>Détail des 18 jeux</summary>${AX_ORDER.map(a => `<p class="bd-h">${AXES[a].icon} ${AXES[a].name} · ${b.axes[a]}</p><div class="rlist">${AXES[a].games.map(id => { const g = GAMES.find(x => x.id === id), sk = (b.skipped || []).includes(id); return `<div class="ritem"><span class="mini" style="--c:${g.color};background:${g.color}">${g.icon}</span><span>${g.name}${sk ? '<br><span class="small muted">passé</span>' : ''}</span><span class="v">${b.games[id] ?? 0}</span></div>`; }).join('')}</div>`).join('')}</details>`;
+}
+function bilanBoard(b, prev, changes, totalCount) {
+  Clock.reset(); window.scrollTo(0, 0);
+  const md = medalOf(b.global), cmpWarn = prev && (!sameLevels(prev, b) || prev.chrono !== b.chrono);
+  app.innerHTML = `<div class="screen play result bil-board">${scene('constellation')}
+    <div class="card">${md ? medalSVG(md) : MECHE}
+      <p class="muted" style="margin:0">Grand bilan · ${fmtD(b.d)} · ${b.chrono ? '⏱ chrono' : '🌿 sans chrono'}${b.incomplete ? ' · <span class="pastille warn">incomplet</span>' : ''}</p>
+      <div class="bigscore" id="tot">0<small> / 100</small></div>
+      <p style="font-weight:800;margin:0">${md ? MEDALS[md][2] : 'Pas encore de médaille'}${prev ? ` · ${delta(b.global, prev.global)} <span class="small muted">vs ${fmtD(prev.d)}</span>` : ''}</p>
+      ${starsHTML(starsOf(b.global))}
+    </div>
+    <div class="card panel dash">
+      <h3>Ton tableau de bord</h3>
+      ${radarSVG(b, prev)}
+      ${prev ? `<p class="small muted leg"><span class="lg a"></span>ce bilan <span class="lg b"></span>bilan du ${fmtD(prev.d)}</p>` : ''}
+      ${barsHTML(b, prev)}
+      ${cmpWarn ? '<p class="small muted">Le bilan d’avant a été fait à un autre niveau ou avec un autre réglage de chrono : la comparaison est indicative.</p>' : ''}
+      <div class="coach bs-hi">${MECHE.replace('data-mood="neutral"', 'data-mood="happy"')}<div class="bubble">${mecheSays(b)}</div></div>${strongWeak(b)}
+      ${changes.length ? `<div class="lvchg"><b>Tes niveaux changent</b>${changes.map(c => `<p>${AXES[c.a].icon} ${AXES[c.a].name} : ${LEVELS[c.from].name} → <b>${LEVELS[c.to].name}</b> ${c.up ? '💪' : '🙂'}</p>`).join('')}</div>`
+        : b.incomplete ? '<p class="small muted">Bilan incomplet : tes niveaux ne changent pas cette fois.</p>' : settings.autoLevel ? '<p class="small muted">Tes niveaux restent les mêmes pour le prochain bilan.</p>' : ''}
+      ${detailHTML(b)}
+    </div>
+    ${totalCount % 5 === 0 ? `<div class="coach bk-remind">${MECHE}<div class="bubble">Pense à sauvegarder ta progression : un petit code à garder, au cas où tu changes de téléphone. <button class="btn ghost" id="bk">Sauvegarder maintenant</button></div></div>` : ''}
+    <button class="btn accent share-btn" id="share" style="margin-top:16px">📤 Partager mon bilan</button>
+    <button class="btn go" id="prog" style="margin-top:10px">Voir mes progrès</button>
+    <button class="btn secondary" id="home">Retour à l’accueil</button></div>`;
+  countUp($('#tot'), b.global, '<small> / 100</small>');
+  SFX(prev && b.global > prev.global ? 'record' : 'end');
+  if (md) setTimeout(() => confetti(md === 'or' ? 60 : 36), 500);
+  on('#share', 'click', () => shareScore(bilanShareText(b)));
+  on('#prog', 'click', progress); on('#home', 'click', home); on('#bk', 'click', backupSheet);
+}
+
+/* ---------- Sauvegarde / restauration (toutes les clés pige:) ---------- */
+const b64enc = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+const b64dec = s => { const bin = atob(s), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return u8; };
+async function exportCode() {
+  const data = {}; Object.keys(localStorage).filter(k => k.startsWith('pige:')).sort().forEach(k => { data[k] = localStorage.getItem(k); });
+  let bytes = new TextEncoder().encode(JSON.stringify({ app: 'mindsprint', v: 1, date: new Date().toISOString(), data })), pre = 'MS0:';
+  if (window.CompressionStream) { try { const st = new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip')); bytes = new Uint8Array(await new Response(st).arrayBuffer()); pre = 'MS1:'; } catch (e) { } }
+  return pre + b64enc(bytes);
+}
+async function readCode(code) {
+  code = String(code || '').replace(/\s+/g, '');
+  const pre = code.slice(0, 4); if (pre !== 'MS0:' && pre !== 'MS1:') throw new Error('Ce n’est pas un code de sauvegarde MindSprint.');
+  let bytes = b64dec(code.slice(4));
+  if (pre === 'MS1:') { if (!window.DecompressionStream) throw new Error('Ce navigateur ne sait pas lire ce code compressé.'); const st = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip')); bytes = new Uint8Array(await new Response(st).arrayBuffer()); }
+  const o = JSON.parse(new TextDecoder().decode(bytes));
+  if (!o || o.app !== 'mindsprint' || !o.data || typeof o.data !== 'object') throw new Error('Code incomplet ou abîmé.');
+  return o;
+}
+function applyBackup(o) {
+  Object.keys(localStorage).filter(k => k.startsWith('pige:')).forEach(k => localStorage.removeItem(k));
+  Object.entries(o.data).forEach(([k, v]) => { if (k.startsWith('pige:') && typeof v === 'string') localStorage.setItem(k, v); });
+  location.reload();
+}
+async function backupSheet() {
+  let code = '';
+  try { code = await exportCode(); } catch (e) { toast('⚠️', 'Sauvegarde impossible', 'Réessaie dans un instant.'); return; }
+  const n = myBilans().length, file = `mindsprint-sauvegarde-${today()}.txt`;
+  sheet(`<h2>Sauvegarder ma progression</h2>
+    <p class="small muted" style="margin:-4px 0 8px">Ce code contient tout : bilans, records, badges, réglages (${n} bilan${n > 1 ? 's' : ''}). Garde-le dans tes notes, un e-mail ou un fichier. Pour le retrouver : Réglages ⚙ → Restaurer.</p>
+    <textarea class="share-ta bk-code" readonly rows="4" aria-label="Code de sauvegarde">${esc(code)}</textarea>
+    <div class="bk-btns"><button class="btn secondary" id="bcopy">📋 Copier</button><button class="btn secondary" id="bdl">⬇️ Télécharger</button>${navigator.share ? '<button class="btn secondary" id="bsh">📤 Partager</button>' : ''}</div>
+    <button class="btn" id="ok">Fermer</button>`, (root, close) => {
+    on('#ok', 'click', close, root);
+    on('#bcopy', 'click', async () => { let ok = false; try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(code); ok = true; } } catch (e) { } if (!ok) { const t = $('textarea', root); t.select(); try { ok = document.execCommand('copy'); } catch (e) { } } toast(ok ? '📋' : '✋', ok ? 'Code copié !' : 'Sélectionne le code et copie-le', ok ? 'Colle-le dans tes notes ou un message.' : ''); }, root);
+    on('#bdl', 'click', () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([code], { type: 'text/plain' })); a.download = file; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); }, root);
+    on('#bsh', 'click', async () => { try { const f = new File([code], file, { type: 'text/plain' }); if (navigator.canShare && navigator.canShare({ files: [f] })) await navigator.share({ files: [f], title: 'Sauvegarde MindSprint' }); else await navigator.share({ text: code, title: 'Sauvegarde MindSprint' }); } catch (e) { } }, root);
+  });
+}
+function restoreSheet() {
+  sheet(`<h2>Restaurer une sauvegarde</h2>
+    <p class="small muted" style="margin:-4px 0 8px">Colle ton code de sauvegarde, ou choisis le fichier .txt.</p>
+    <textarea class="share-ta" id="rcode" rows="4" placeholder="MS1:…" aria-label="Code de sauvegarde"></textarea>
+    <label class="btn secondary bk-file">📄 Choisir le fichier<input type="file" id="rfile" accept=".txt,text/plain"></label>
+    <p class="small bk-err" id="rerr" role="alert"></p>
+    <div id="rconf"></div>
+    <button class="btn go" id="rgo">Restaurer</button><button class="btn ghost" id="cancel">Annuler</button>`, (root, close) => {
+    const err = m => { $('#rerr', root).textContent = m; };
+    on('#cancel', 'click', close, root);
+    on('#rfile', 'change', async e => { const f = e.target.files && e.target.files[0]; if (!f) return; try { $('#rcode', root).value = (await f.text()).trim(); err(''); } catch (x) { err('Fichier illisible.'); } }, root);
+    on('#rgo', 'click', async () => {
+      let o; try { o = await readCode($('#rcode', root).value); } catch (x) { err(x.message || 'Code illisible.'); return; }
+      err('');
+      let nb = 0; try { nb = JSON.parse(o.data['pige:bilans'] || '[]').length; } catch (x) { }
+      $('#rconf', root).innerHTML = `<div class="bil-warn"><b>Remplacer toutes tes données actuelles ?</b><br><span class="small">Sauvegarde du ${o.date ? new Date(o.date).toLocaleDateString('fr-BE') : '?'} · ${nb} bilan${nb > 1 ? 's' : ''}. Ce qui est dans ce téléphone sera remplacé.</span></div><button class="btn accent" id="ryes" style="margin-top:10px">Oui, restaurer</button>`;
+      $('#rgo', root).hidden = true;
+      on('#ryes', 'click', () => applyBackup(o), root);
+    }, root);
+  });
+}
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(p => { if (!p) navigator.storage.persist().catch(() => { }); }).catch(() => { }); } catch (e) { }
+
 /* ---------- Duel contre Mèche ---------- */
 const DUEL = { gue: 2000, bulles: 5200, constellation: 1500, crabes: 1900, boutique: 5000, vent: 950 };
 const ROBOT = { facile: ['Tranquille', 1.5], moyen: ['Rusé', 1.0], fort: ['Fusée', 0.72] };
@@ -923,34 +1178,72 @@ function turboPick() {
   on('#back', 'click', home);
   $$('.gtok').forEach(b => b.addEventListener('click', () => { S = { mode: 'turbo', level: settings.level, seed: newSeed(), games: [GAMES.find(x => x.id === b.dataset.id)], idx: 0, scores: {}, details: {} }; intro(); }));
 }
-/* ---------- Mes progrès ---------- */
-function progress() { window.scrollTo(0, 0);
-  Clock.reset();
-  const hist = store.get('hist', []), st = streakNow(), badges = store.get('badges', {}), gh = store.get('gh', {});
-  const last = hist.slice(-20).map(h => h.score);
+/* ---------- Mes progrès : uniquement les grands bilans terminés, même profil ---------- */
+function flagsOf(b, ref) {
+  const f = [];
+  if (b.incomplete) f.push(['warn', 'incomplet']);
+  if (!b.chrono) f.push(['', 'sans chrono']);
+  if (ref && b !== ref && !sameLevels(b, ref)) f.push(['', 'autre niveau']);
+  return f;
+}
+const pastilles = f => f.map(([c, t]) => `<span class="pastille ${c}">${t}</span>`).join('');
+function progress() {
+  window.scrollTo(0, 0); Clock.reset();
+  const mine = myBilans(), st = streakNow(), badges = store.get('badges', {}), gh = store.get('gh', {}), run = bilanRun();
   const avg = a => a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : null;
-  const m10 = avg(hist.slice(-10).map(h => h.score)), mPrev = avg(hist.slice(-20, -10).map(h => h.score));
-  const trend = m10 != null && mPrev != null ? (m10 > mPrev ? `↗ +${m10 - mPrev} par rapport aux 10 parties d’avant` : m10 < mPrev ? `↘ ${m10 - mPrev} par rapport aux 10 parties d’avant` : '→ stable') : 'Joue encore quelques parties pour voir ta tendance.';
-  const sp = avg(hist.slice(-10).map(h => h.sp)), lo = avg(hist.slice(-10).map(h => h.lo));
-  app.innerHTML = `<div class="screen play">${scene('phares')}
-    <div class="topbar"><button class="iconbtn" id="back" aria-label="Retour">←</button><span class="plaque" style="margin-left:4px">Mes progrès</span></div>
-    <div class="card panel">
-      <div class="statgrid"><div><b>${m10 ?? '—'}</b><span>Ta moyenne (10 dernières)</span></div><div><b>🔥 ${st.n}</b><span>Série actuelle (record ${st.best || 0})</span></div><div><b>${hist.length}</b><span>Tests joués</span></div></div>
-      <p class="small" style="margin:8px 0 0">${trend}</p>
-      ${last.length >= 2 ? `<div class="chart">${chart(last)}</div>` : '<p class="muted">Ton graphique apparaîtra après 2 parties (défi du jour ou Jouer seulress).</p>'}
-      ${sp != null ? `<div class="split"><div class="sp">⚡ Rapidité<b>${sp}</b></div><div class="lo">⚙ Logique<b>${lo}</b></div></div>` : ''}
+  const last = mine[mine.length - 1], prev = mine[mine.length - 2] || null;
+  let top;
+  if (!last) {
+    top = `<div class="card panel empty-prog">${MECHE.replace('data-mood="neutral"', 'data-mood="happy"')}
+      <h3>Fais ton premier bilan…</h3>
+      <p>…et ton tableau de bord apparaîtra ici : un score pour le calcul mental, la logique, le raisonnement, l’observation, la mémoire et la rapidité. Refais-le dans quelques jours pour voir tes progrès, catégorie par catégorie.</p>
+      <button class="btn go" id="gob">${run ? `Reprendre mon bilan (${run.idx}/18)` : 'Faire mon premier bilan'}</button></div>`;
+  } else {
+    const W = mine.slice(-20), flags = W.map(b => flagsOf(b, last).length > 0);
+    const weeks = {}; mine.forEach(b => { const k = weekKey(new Date(b.d + 'T12:00')); (weeks[k] = weeks[k] || []).push(b); });
+    const wk = Object.keys(weeks).sort().slice(-8);
+    const wrows = wk.map((k, i) => { const v = avg(weeks[k].map(b => b.global)), pv = i ? avg(weeks[wk[i - 1]].map(b => b.global)) : null;
+      const end = new Date(k + 'T12:00'); end.setDate(end.getDate() + 6);
+      return `<tr><td>${fmtD(k)} → ${fmtD(today(end))}</td><td>${weeks[k].length}</td><td><b>${v}</b></td><td>${pv == null ? '—' : delta(v, pv)}</td></tr>`; }).reverse().join('');
+    const best = Math.max(...mine.map(b => b.global));
+    top = `<div class="card panel dash">
+      <h3>Ton dernier bilan · ${fmtD(last.d)}</h3>
+      <div class="dash-top"><div class="bigscore">${last.global}<small> / 100</small></div><div>${prev ? delta(last.global, prev.global) + `<br><span class="small muted">vs ${fmtD(prev.d)}</span>` : '<span class="small muted">Premier bilan</span>'}<br>${pastilles(flagsOf(last, last))}</div></div>
+      ${radarSVG(last, prev)}
+      ${prev ? `<p class="small muted leg"><span class="lg a"></span>dernier bilan <span class="lg b"></span>bilan du ${fmtD(prev.d)}</p>` : ''}
+      ${barsHTML(last, prev)}
+      ${run ? `<button class="btn secondary" id="gob" style="margin-top:12px">Reprendre mon bilan (${run.idx}/18)</button>` : `<button class="btn go" id="gob" style="margin-top:12px">Refaire un bilan</button>`}
     </div>
-    <div class="card panel"><h3>Tes épreuves</h3><div class="rlist">${GAMES.map(g => { const a = gh[g.id] || []; const m = avg(a.slice(-5)); return `<div class="ritem"><span class="mini" style="--c:${g.color};background:${g.color}">${g.icon}</span><span>${g.name}<br><span class="small muted">${a.length ? `${a.length} partie${a.length > 1 ? 's' : ''} · moyenne récente ${m}` : 'pas encore jouée'}</span></span><span class="v">${a.length ? Math.max(...a) : ''}</span></div>`; }).join('')}</div></div>
+    <div class="card panel">
+      <h3>Mon évolution</h3>
+      <div class="statgrid"><div><b>${mine.length}</b><span>Bilan${mine.length > 1 ? 's' : ''}</span></div><div><b>${best}</b><span>Meilleur score</span></div><div><b>🔥 ${st.n}</b><span>Série du défi (record ${st.best || 0})</span></div></div>
+      ${W.length >= 2 ? `<div class="chart">${chart(W.map(b => b.global), { labels: W.map(b => fmtD(b.d)), flags })}</div>` : '<p class="small muted">La courbe apparaîtra dès ton 2<sup>e</sup> bilan.</p>'}
+      ${W.length >= 2 ? `<div class="ax6">${AX_ORDER.map(a => { const v = W.map(b => b.axes[a]); return `<div class="ax6-c"><span class="ax6-h">${AXES[a].icon} ${AXES[a].short}</span><span class="ax6-v"><b>${v[v.length - 1]}</b>${delta(v[v.length - 1], v[0])}</span>${sparkline(v, 140, 44, Math.max(0, Math.min(...v) - 10), Math.min(100, Math.max(...v) + 10)).replace('aria-label="Évolution des derniers scores"', `aria-label="${AXES[a].name} : ${v.join(', ')}"`)}</div>`; }).join('')}</div><p class="small muted">Flèches : écart entre le premier et le dernier bilan de la courbe.</p>` : ''}
+      <h3 style="margin-top:14px">Tes derniers bilans</h3>
+      <div class="rlist">${mine.slice(-8).reverse().map(b => `<div class="ritem bl-it"><span>${fmtD(b.d)}<br><span class="small muted">${AX_ORDER.map(a => AXES[a].icon + b.axes[a]).join(' ')}</span>${flagsOf(b, last).length ? '<br>' + pastilles(flagsOf(b, last)) : ''}</span><span class="v">${b.global}</span></div>`).join('')}</div>
+      <p class="small muted">Pastilles : bilan fait sans chrono, à un autre niveau que ton dernier bilan, ou incomplet. Leurs scores sont moins comparables.</p>
+      <h3 style="margin-top:14px">Semaine par semaine</h3>
+      <table class="wk"><thead><tr><th>Semaine</th><th>Bilans</th><th>Moyenne</th><th>Évolution</th></tr></thead><tbody>${wrows}</tbody></table>
+    </div>`;
+  }
+  app.innerHTML = `<div class="screen play">${scene('phares')}
+    <div class="topbar"><button class="iconbtn" id="back" aria-label="Retour">←</button><span class="plaque" style="margin-left:4px">Mes progrès · ${prof().icon} ${prof().name}</span></div>
+    ${top}
+    <div class="card panel"><h3>Tes records par jeu</h3><p class="small muted" style="margin:-4px 0 8px">Tous modes confondus (sauf famille et turbo).</p><div class="rlist">${GAMES.map(g => { const a = gh[g.id] || [], b = bestOf(g.id); return `<div class="ritem"><span class="mini" style="--c:${g.color};background:${g.color}">${g.icon}</span><span>${g.name}<br><span class="small muted">${a.length ? `${a.length} partie${a.length > 1 ? 's' : ''} · moyenne récente ${avg(a.slice(-5))}` : 'pas encore jouée'}</span></span><span class="v">${b >= 0 ? b : ''}</span></div>`; }).join('')}</div></div>
     <div class="card panel"><h3>Badges</h3><div class="badges">${BADGES.map(b => `<div class="badge ${badges[b[0]] ? 'got' : ''}"><span>${b[1]}</span><b>${b[2]}</b><small>${badges[b[0]] ? 'Obtenu' : b[3]}</small></div>`).join('')}</div></div>
   </div>`;
   on('#back', 'click', home);
+  on('#gob', 'click', () => { if (bilanRun()) resumeBilan(); else bilanSheet(); });
 }
-function chart(vals) {
-  const w = 320, h = 160, n = vals.length, x = i => 28 + i * (w - 40) / Math.max(1, n - 1), y = v => h - 22 - v * (h - 40) / 100;
-  const ma = vals.map((_, i) => { const s = vals.slice(Math.max(0, i - 4), i + 1); return s.reduce((a, b) => a + b, 0) / s.length; });
-  const grid = [0, 25, 50, 75, 100].map(v => `<line x1="24" x2="${w - 8}" y1="${y(v)}" y2="${y(v)}" stroke="var(--chart-grid)" stroke-dasharray="2 6" stroke-linecap="round"/><text x="2" y="${y(v) + 4}" font-size="11" font-weight="700" fill="var(--chart-txt)">${v}</text>`).join('');
+function chart(vals, o = {}) {
+  const w = 320, h = 172, n = vals.length, x = i => 30 + i * (w - 44) / Math.max(1, n - 1), y = v => h - 34 - v * (h - 50) / 100;
+  const grid = [0, 25, 50, 75, 100].map(v => `<line x1="26" x2="${w - 8}" y1="${y(v)}" y2="${y(v)}" stroke="var(--chart-grid)" stroke-dasharray="2 6" stroke-linecap="round"/><text x="2" y="${y(v) + 4}" font-size="11" font-weight="700" fill="var(--chart-txt)">${v}</text>`).join('');
   const area = `M${x(0)},${y(0)} ` + vals.map((v, i) => `L${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ') + ` L${x(n - 1)},${y(0)} Z`;
-  return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Évolution de tes scores">${grid}<path d="${area}" fill="var(--chart-a)" opacity=".14"/><polyline points="${vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--chart-a)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${ma.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--chart-b)" stroke-width="3" stroke-dasharray="6 5" stroke-linecap="round"/>${vals.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.5" fill="var(--chart-a)"/>`).join('')}<text x="${w - 8}" y="${h - 4}" font-size="11" font-weight="700" text-anchor="end" fill="var(--chart-txt)">— scores · - - moyenne</text></svg>`;
+  const lab = o.labels || [], step = Math.max(1, Math.ceil(n / 5));
+  const xl = lab.map((t, i) => i === n - 1 || (i % step === 0 && n - 1 - i >= Math.ceil(step / 2)) ? `<text x="${x(i).toFixed(1)}" y="${h - 14}" font-size="11" font-weight="700" text-anchor="middle" fill="var(--chart-txt)">${t}</text>` : '').join('');
+  const fl = o.flags || [];
+  const desc = `Score global de tes bilans : ${vals.map((v, i) => `${lab[i] || ''} ${v}`).join(', ')}`;
+  return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${desc}">${grid}<path d="${area}" fill="var(--chart-a)" opacity=".14"/><polyline points="${vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--chart-a)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>${vals.map((v, i) => fl[i] ? `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="5" fill="var(--bg)" stroke="var(--chart-end)" stroke-width="3"/>` : `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="4" fill="var(--chart-a)"/>`).join('')}${xl}${fl.some(Boolean) ? `<text x="${w - 8}" y="${h - 1}" font-size="11" font-weight="700" text-anchor="end" fill="var(--chart-txt)">○ bilan avec pastille</text>` : ''}</svg>`;
 }
 
 /* ---------- Clavier : Entrée / Espace jouent comme un toucher ---------- */

@@ -70,7 +70,7 @@ const STAR_H='M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3z';
 const starsOf=s=>s>=85?3:s>=65?2:s>=40?1:0;
 const starsHTML=(n,big)=>`<div class="stars3${big?' big':''}" role="img" aria-label="${n} étoile${n>1?'s':''} sur 3">${[0,1,2].map(i=>`<svg viewBox="0 0 24 24" class="${i<n?'on':''}" style="--i:${i}"><path d="${STAR_P}"/><path class="st-sh" d="${STAR_H}"/></svg>`).join('')}</div>`;
 const MEDALS={or:['#FFD45C','#C98A12','Médaille d’or'],argent:['#E3E9F2','#8A97AD','Médaille d’argent'],bronze:['#E9A46A','#9A5A2A','Médaille de bronze']};
-const medalOf=t=>t>=80?'or':t>=60?'argent':t>=40?'bronze':null;
+const medalOf=t=>t>=85?'or':t>=65?'argent':t>=40?'bronze':null;
 function medalSVG(k){const[a,b,l]=MEDALS[k];return `<svg class="medal" viewBox="0 0 120 150" role="img" aria-label="${l}"><path d="M34 0h22l14 46H48zM86 0H64L50 46h22z" fill="#F0524F"/><path d="M60 0h26L72 46H60z" fill="#BF3330" opacity=".35"/><path d="M45 0h8l12 46h-8z" fill="#fff" opacity=".85"/><circle cx="60" cy="96" r="46" fill="${b}"/><circle cx="60" cy="96" r="37" fill="${a}"/><path d="M60 59a37 37 0 0 1 0 74z" fill="${b}" opacity=".18"/><g fill="${b}"><path d="M54 120l2-30h8l2 30z"/><path d="M52 90h16l-3-8H55z"/><circle cx="60" cy="78" r="5"/></g><path d="M66 78l20-8v16z" fill="#fff" opacity=".8"/><path class="medal-shine" d="M30 70l20-20 8 8-20 20z" fill="#fff" opacity=".45"/></svg>`;}
 
 /* ===== CONFETTIS ===== */
