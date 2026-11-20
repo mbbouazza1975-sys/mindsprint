@@ -5,10 +5,11 @@
 |---|---|
 | `index.html` | La page de l'app |
 | `styles.css`, `design.css`, `theme.css` | Le design : base, éléments de jeu, puis thème clair « Archipel illustré » et sombre « Lagon phosphorescent » (`theme.css` a le dernier mot) |
-| `games.js` | Les 18 épreuves |
+| `games.js` | Les 22 épreuves |
+| `questions.js` | La banque de questions du jeu « Les énigmes du phare » (mode d'emploi pour en ajouter en tête du fichier) |
 | `tutos.js` | Les consignes, exemples illustrés et essais guidés |
 | `scenes.js` | Les décors, la mascotte Mèche, étoiles, médailles et sons |
-| `app.js` | Les écrans : défi du jour, test express, duel contre Mèche, turbo, famille, entraînement, Mes progrès, badges |
+| `app.js` | Les écrans : défi du jour, Jouer seul, parcours thématique, partage du score, joker de série, duel contre Mèche, turbo, famille, entraînement, Mes progrès, badges |
 | `fonts/` | Les polices Outfit et Nunito (licence OFL jointe) |
 | `sw.js` | Le service worker, qui fait marcher l'app sans connexion |
 | `manifest.webmanifest` + `icons/` | Ce qu'il faut pour l'installer sur l'écran d'accueil |

@@ -1,6 +1,6 @@
 'use strict';
 /* =========================================================
-   MindSprint — les 18 épreuves (9 rapidité, 9 logique)
+   MindSprint — les 22 épreuves (11 rapidité, 11 logique)
    Chaque épreuve : run(c) où c = contexte fourni par app.js
    ========================================================= */
 
@@ -86,16 +86,16 @@ const bonnes = n => `${n} bonne${n > 1 ? 's' : ''} réponse${n > 1 ? 's' : ''}`;
    ========================================================= */
 
 const G_LANTERNE = {
-  id: 'lanterne', name: 'La lanterne du quai', cat: 'speed', color: '#F4B400', fg: '#1E1B4B', icon: '🏮',
+  id: 'lanterne', short: 'Lanterne', skill: 'reflexe', name: 'La lanterne du quai', cat: 'speed', color: '#F4B400', fg: '#1E1B4B', icon: '🏮',
   rule: l => l === 'F'
     ? "La lanterne est éteinte. Touche l'écran dès qu'elle s'allume en jaune."
     : "Touche l'écran dès que la lanterne s'allume en jaune. Si elle ne fait que vaciller, ne touche pas : c'est un leurre.",
-  info: l => ({ F: '5 essais', N: '6 essais', E: '7 essais' })[l],
+  info: () => '10 essais',
   run(c) {
     const P = c.L({
-      F: { n: 5, d: [1500, 3500], p: 0, fast: 300, slow: 1050 },
-      N: { n: 6, d: [1000, 4000], p: .2, fast: 200, slow: 1100 },
-      E: { n: 7, d: [800, 4500], p: .5, fast: 280, slow: 650 }
+      F: { n: 10, d: [1500, 3500], p: 0, fast: 300, slow: 1050 },
+      N: { n: 10, d: [1000, 4000], p: .2, fast: 200, slow: 1100 },
+      E: { n: 10, d: [800, 4500], p: .5, fast: 280, slow: 650 }
     });
     c.stage.innerHTML = `<div class="lant-pad" id="lp" role="button" tabindex="0" aria-label="Zone à toucher quand la lanterne s’allume">
       <div class="lantern" id="lan"><div class="cap"></div><div class="glass"></div><div class="base"></div></div>
@@ -142,7 +142,9 @@ const G_LANTERNE = {
       } else if (state === 'lit') {
         ids.forEach(c.cancel); ids = [];
         const rt = c.now() - litAt; state = 'pause';
-        scores.push(100 * clamp01((P.slow - rt) / (P.slow - P.fast))); rts.push(rt);
+        // temps de jeu ÷ max(1, rate) : temps réel pour les profils rapides, adouci pour les profils lents
+        const rtScore = rt / Math.max(1, c.rate || 1);
+        scores.push(100 * clamp01((P.slow - rtScore) / (P.slow - P.fast))); rts.push(rt);
         msg.textContent = `${Math.round(rt / (c.rate || 1))} ms`; c.good(pad, false); next();
       }
     });
@@ -151,7 +153,7 @@ const G_LANTERNE = {
 };
 
 const G_BATEAUX = {
-  id: 'bateaux', name: 'Bateaux, pas requins', cat: 'speed', color: '#D93A1E', fg: '#fff', icon: '⛵',
+  id: 'bateaux', short: 'Bateaux', skill: 'reflexe', name: 'Bateaux, pas requins', cat: 'speed', color: '#D93A1E', fg: '#fff', icon: '⛵',
   rule: () => "Un bateau ⛵ ou un requin 🦈 surgit de l'eau. Touche vite les bateaux, mais ne touche jamais les requins.",
   info: () => '30 secondes',
   run(c) {
@@ -188,7 +190,7 @@ const G_BATEAUX = {
 };
 
 const G_VENT = {
-  id: 'vent', name: 'Vent contraire', cat: 'speed', color: '#00A6C8', fg: '#1E1B4B', icon: '🧭',
+  id: 'vent', short: 'Vent', skill: 'reflexe', name: 'Vent contraire', cat: 'speed', color: '#00A6C8', fg: '#1E1B4B', icon: '🧭',
   rule: l => l === 'E'
     ? "Une flèche apparaît d'un côté de l'écran. Touche le côté vers lequel elle pointe, où qu'elle soit. Mais si la lune 🌙 l'accompagne, touche le côté où elle se trouve."
     : "Une flèche apparaît d'un côté de l'écran. Touche le côté vers lequel elle pointe, peu importe où elle se trouve.",
@@ -220,12 +222,12 @@ const G_VENT = {
       c.later(trial, 250);
     }));
     trial();
-    c.timer(30, () => c.done(100 * clamp01((ok - ko) / P.target), `${bonnes(ok)} · ${plural(ko, 'erreur')}`));
+    c.timer(30, () => c.done(100 * clamp01((ok - ko) / P.target), `${bonnes(ok)} · ${plural(ko, 'erreur')} · précision ${ok + ko ? Math.round(100 * ok / (ok + ko)) : 0} %`));
   }
 };
 
 const G_CONSTEL = {
-  id: 'constellation', name: 'Constellation', cat: 'speed', color: '#7A3FF2', fg: '#fff', icon: '⭐',
+  id: 'constellation', short: 'Étoiles', skill: 'attention', name: 'Constellation', cat: 'speed', color: '#7A3FF2', fg: '#fff', icon: '⭐',
   rule: l => l === 'F'
     ? "La carte du haut montre l'étoile à trouver. Repère-la dans le ciel et touche-la. Une nouvelle constellation arrive aussitôt."
     : "La carte du haut montre l'étoile à trouver. Attention : les autres ont la même forme ou la même couleur. Seule la bonne a les deux.",
@@ -272,7 +274,7 @@ const G_CONSTEL = {
 };
 
 const G_GUE = {
-  id: 'gue', name: 'Le gué de pierres', cat: 'speed', color: '#8B5A2B', fg: '#fff', icon: '🪨',
+  id: 'gue', short: 'Gué', skill: 'calcul', name: 'Le gué de pierres', cat: 'speed', color: '#8B5A2B', fg: '#fff', icon: '🪨',
   rule: () => "Un calcul s'affiche au-dessus de la rivière. Touche la pierre qui porte le bon résultat pour avancer. Cinq bonnes réponses d'affilée rapportent un bonus.",
   info: () => '30 secondes',
   run(c) {
@@ -328,7 +330,7 @@ const G_GUE = {
 };
 
 const G_LUCIOLES = {
-  id: 'lucioles', name: 'Nuées de lucioles', cat: 'speed', color: '#7CC242', fg: '#1E1B4B', icon: '✨',
+  id: 'lucioles', short: 'Lucioles', skill: 'attention', name: 'Nuées de lucioles', cat: 'speed', color: '#7CC242', fg: '#1E1B4B', icon: '✨',
   rule: () => "Deux nuées de lucioles brillent un court instant, une de chaque côté. Pas le temps de compter : touche le côté où il y en avait le plus.",
   info: () => '20 essais',
   run(c) {
@@ -382,7 +384,7 @@ const G_LUCIOLES = {
    ========================================================= */
 
 const G_PHARES = {
-  id: 'phares', name: "Les phares de l'archipel", cat: 'logic', color: '#1F5FE0', fg: '#fff', icon: '🔦',
+  id: 'phares', short: 'Phares', skill: 'memoire', name: "Les phares de l'archipel", cat: 'logic', color: '#1F5FE0', fg: '#fff', icon: '🔦',
   rule: l => "Des phares s'allument l'un après l'autre. Quand c'est ton tour, rallume-les dans le même ordre. La série s'allonge à chaque réussite."
     + (l === 'E' ? ' Un éclat rouge est un faux signal : ignore-le.' : ''),
   info: l => ({ F: '3 essais ratés max', N: '2 essais ratés max', E: '2 essais ratés max' })[l],
@@ -394,7 +396,7 @@ const G_PHARES = {
     });
     c.stage.innerHTML = `<div class="memmsg" id="mm" aria-live="polite"></div><div class="map" id="map"></div>`;
     const map = $('#map', c.stage), mm = $('#mm', c.stage);
-    let beacons = [], seq = [], input = 0, len = P.start, best = 0, fails = 0, seqs = 0, locked = true;
+    let beacons = [], seq = [], input = 0, len = P.start, best = 0, part = 0, partTxt = '', fails = 0, seqs = 0, locked = true;
     c.score(0); c.progress(1);
     function build() {
       const W = map.clientWidth, H = map.clientHeight;
@@ -417,7 +419,9 @@ const G_PHARES = {
     function flash(i, cls, ms) { beacons[i].classList.add(cls); c.later(() => beacons[i].classList.remove(cls), ms); }
     function round() {
       if (fails >= P.fails || seqs >= 10) {
-        return c.done(100 * clamp01(best / P.target), best ? `Plus longue série retenue : ${best} phares` : 'Aucune série complète');
+        // série partielle : un essai raté rapporte les phares rallumés dans l'ordre (sans dépasser la série suivante)
+        const eff = Math.max(best, part);
+        return c.done(100 * clamp01(eff / P.target), best ? `Plus longue série retenue : ${best} phares` + (part > best ? ` · ${partTxt}` : '') : part ? partTxt : 'Aucun phare rallumé dans l’ordre');
       }
       locked = true; input = 0; seq = [];
       for (let k = 0; k < len; k++) { let v; do { v = c.rng.int(0, P.n - 1); } while (k && v === seq[k - 1]); seq.push(v); }
@@ -443,6 +447,8 @@ const G_PHARES = {
         }
       } else {
         locked = true; seqs++; fails++; c.ok(null); c.bad(beacons[i]);
+        const pv = best === len - 1 ? best + input / len : Math.max(best, input);
+        if (input && pv > part) { part = pv; partTxt = `série partielle : ${input} phare${input > 1 ? 's' : ''} sur ${len}`; }
         beacons[i].classList.add('bad'); flash(seq[input], 'on', 900);
         mm.textContent = fails >= P.fails ? "C'est fini pour cette fois." : `Raté ! Encore ${P.fails - fails} essai${P.fails - fails > 1 ? 's' : ''}.`;
         c.later(() => { beacons[i].classList.remove('bad'); round(); }, 1300);
@@ -453,7 +459,7 @@ const G_PHARES = {
 };
 
 const G_COLLIER = {
-  id: 'collier', name: 'Le collier de coquillages', cat: 'logic', color: '#FF8FB1', fg: '#1E1B4B', icon: '🐚',
+  id: 'collier', short: 'Collier', skill: 'logique', name: 'Le collier de coquillages', cat: 'logic', color: '#FF8FB1', fg: '#1E1B4B', icon: '🐚',
   rule: l => "Les coquillages du collier suivent une règle cachée (forme, couleur ou nombre de points). Touche celui qui vient ensuite."
     + (l === 'F' ? '' : ' Plusieurs choses peuvent changer en même temps.'),
   info: () => '8 colliers',
@@ -565,7 +571,7 @@ const PX = {
 };
 
 const G_RECIF = {
-  id: 'recif', name: 'Le récif tourné', cat: 'logic', color: '#B5179E', fg: '#fff', icon: '🧩',
+  id: 'recif', short: 'Récif', skill: 'espace', name: 'Le récif tourné', cat: 'logic', color: '#B5179E', fg: '#fff', icon: '🧩',
   rule: l => "Voici un récif de corail vu d'en haut. Parmi les propositions, touche le même récif, simplement tourné."
     + (l === 'F' ? '' : ' Attention aux récifs retournés comme dans un miroir : ils ne comptent pas.'),
   info: () => '8 récifs',
@@ -637,7 +643,7 @@ const G_RECIF = {
 };
 
 const G_COURANTS = {
-  id: 'courants', name: 'Les courants', cat: 'logic', color: '#2EC4B6', fg: '#1E1B4B', icon: '🌊',
+  id: 'courants', short: 'Courants', skill: 'espace', name: 'Les courants', cat: 'logic', color: '#2EC4B6', fg: '#1E1B4B', icon: '🌊',
   rule: l => "La barque ⛵ part de sa case et suit les flèches des courants, case après case. Touche l'île 🏝️ où elle va accoster."
     + (l === 'E' ? " Un tourbillon 🌀 fait tourner son courant d'un quart de tour dans le sens des aiguilles d'une montre." : ''),
   info: () => '6 traversées',
@@ -732,7 +738,7 @@ const DU = a => `${a.du} ${a.e} ${a.n}`;
 function perms(n) { const out = [], a = [...Array(n).keys()]; const rec = k => { if (k === n) { out.push(a.slice()); return; } for (let i = k; i < n; i++) { [a[k], a[i]] = [a[i], a[k]]; rec(k + 1); [a[k], a[i]] = [a[i], a[k]]; } }; rec(0); return out; }
 
 const G_CABINES = {
-  id: 'cabines', name: 'Les cabines de plage', cat: 'logic', color: '#0B7A42', fg: '#fff', icon: '🏖️',
+  id: 'cabines', short: 'Cabines', skill: 'logique', name: 'Les cabines de plage', cat: 'logic', color: '#0B7A42', fg: '#fff', icon: '🏖️',
   rule: () => "Lis les indices, puis range chaque animal dans sa cabine : touche un animal, puis une cabine. Quand tout est rangé, valide.",
   info: l => ({ F: '4 énigmes', N: '4 énigmes', E: '3 énigmes' })[l],
   run(c) {
@@ -846,7 +852,7 @@ const G_CABINES = {
 };
 
 const G_MOUETTES = {
-  id: 'mouettes', name: 'Le tri des mouettes', cat: 'logic', color: '#4E5A73', fg: '#fff', icon: '🕊️',
+  id: 'mouettes', short: 'Mouettes', skill: 'logique', name: 'Le tri des mouettes', cat: 'logic', color: '#4E5A73', fg: '#fff', icon: '🕊️',
   rule: l => "La mouette apporte une carte. Dépose-la dans le bon panier. La règle de tri est secrète : seuls ✓ et ✗ te guident. Et elle change en cours de route !"
     + (l === 'F' ? ' On te préviendra quand elle change.' : ''),
   info: () => '24 cartes',
@@ -923,7 +929,7 @@ function crabSVG(k) {
 const flagHTML = k => `<span class="crabflag"><span class="cf-dot" style="background:${CRAB_COLS[k].h}"><svg viewBox="0 0 100 100" width="22" height="22">${CRAB_SYM[k].replace(/50/g, '50')}</svg></span>${CRAB_COLS[k].n}</span>`;
 
 const G_CRABES = {
-  id: 'crabes', name: 'Les crabes farceurs', cat: 'speed', color: '#C2410C', fg: '#fff', icon: '🦀',
+  id: 'crabes', short: 'Crabes', skill: 'reflexe', name: 'Les crabes farceurs', cat: 'speed', color: '#C2410C', fg: '#fff', icon: '🦀',
   rule: l => l === 'F' ? 'Des crabes sortent de leurs trous. Touche-les vite avant qu’ils redescendent.'
     : 'Des crabes sortent de leurs trous. Touche seulement ceux de la couleur du drapeau, et vite !',
   info: () => '30 secondes',
@@ -981,7 +987,7 @@ const G_CRABES = {
 };
 
 const G_BULLES = {
-  id: 'bulles', name: 'Les bulles du plongeur', cat: 'logic', color: '#0E7490', fg: '#fff', icon: '🤿',
+  id: 'bulles', short: 'Bulles', skill: 'calcul', name: 'Les bulles du plongeur', cat: 'logic', color: '#0E7490', fg: '#fff', icon: '🤿',
   rule: l => l === 'E' ? 'L’ardoise du plongeur montre un total. Touche les 3 bulles dont la somme fait ce total.'
     : 'L’ardoise du plongeur montre un total. Touche les 2 bulles dont la somme fait ce total.',
   info: () => '40 secondes',
@@ -1047,7 +1053,7 @@ const MYST = {
 const MYST_CAT = { animaux: 'un animal', objets: 'un objet', nourriture: 'quelque chose à manger', vehicules: 'un véhicule', personnages: 'un personnage', chiffres: 'un chiffre' };
 
 const G_MYSTERE = {
-  id: 'mystere', name: 'La photo mystère', cat: 'speed', color: '#9333EA', fg: '#fff', icon: '🖼️',
+  id: 'mystere', short: 'Image', skill: 'langage', name: 'L’image mystère', cat: 'speed', color: '#9333EA', fg: '#fff', icon: '🖼️',
   rule: () => 'Une image se dévoile petit à petit sous des carreaux. Devine le plus vite possible ce qu’elle représente parmi les 4 réponses.',
   info: () => '8 images',
   run(c) {
@@ -1108,7 +1114,7 @@ function vitralCell(a) {
   return `<span class="vc n${n}">${Array.from({ length: n }, () => `<svg viewBox="0 0 100 100" style="width:${size}px;height:${size}px">${shapeInner(a.shape, COLORS[a.color].h, 7)}</svg>`).join('')}</span>`;
 }
 const G_VITRAUX = {
-  id: 'vitraux', name: 'Les vitraux du phare', cat: 'logic', color: '#4338CA', fg: '#fff', icon: '🪟',
+  id: 'vitraux', short: 'Vitraux', skill: 'logique', name: 'Les vitraux du phare', cat: 'logic', color: '#4338CA', fg: '#fff', icon: '🪟',
   rule: () => 'Chaque ligne du vitrail suit des règles (forme, couleur, nombre). Trouve la pièce qui complète la case vide.',
   info: () => '8 vitraux',
   run(c) {
@@ -1168,7 +1174,7 @@ const G_VITRAUX = {
 
 /* --- Suites de nombres --- */
 const G_SUITES = {
-  id: 'suites', name: 'Les bouées numérotées', cat: 'logic', color: '#B45309', fg: '#fff', icon: '🔢',
+  id: 'suites', short: 'Bouées', skill: 'calcul', name: 'Les bouées numérotées', cat: 'logic', color: '#B45309', fg: '#fff', icon: '🔢',
   rule: () => 'Les bouées suivent une règle de nombres. Trouve le nombre qui vient ensuite.',
   info: () => '8 suites',
   run(c) {
@@ -1230,7 +1236,7 @@ const G_SUITES = {
 const SHOP = [['🍦', 'une glace'], ['🥐', 'un croissant'], ['🎈', 'un ballon'], ['🧃', 'un jus'], ['🪁', 'un cerf-volant'], ['🍭', 'une sucette'], ['📒', 'un carnet'], ['🧢', 'une casquette'], ['🐚', 'un coquillage'], ['🍩', 'un beignet'], ['🧸', 'une peluche'], ['🕶️', 'des lunettes']];
 const euro = c => (c % 100 ? (c / 100).toFixed(2).replace('.', ',') : String(c / 100)) + ' €';
 const G_BOUTIQUE = {
-  id: 'boutique', name: 'La boutique du port', cat: 'speed', color: '#15803D', fg: '#fff', icon: '🪙',
+  id: 'boutique', short: 'Boutique', skill: 'calcul', name: 'La boutique du port', cat: 'speed', color: '#15803D', fg: '#fff', icon: '🪙',
   rule: l => 'Un client achète un objet. Touche les pièces et billets pour payer le prix exact.' + (l === 'E' ? ' Bonus si tu utilises le moins de pièces possible.' : ''),
   info: () => '40 secondes',
   run(c) {
@@ -1277,4 +1283,291 @@ const G_BOUTIQUE = {
   }
 };
 
-const GAMES = [G_LANTERNE, G_BATEAUX, G_VENT, G_CONSTEL, G_GUE, G_LUCIOLES, G_PHARES, G_COLLIER, G_RECIF, G_COURANTS, G_CABINES, G_MOUETTES, G_CRABES, G_BULLES, G_MYSTERE, G_VITRAUX, G_SUITES, G_BOUTIQUE];
+/* =========================================================
+   NOUVELLES ÉPREUVES (v5) : pont, marée, filet, énigmes du phare
+   ========================================================= */
+const DECK = ['⚓', '🧭', '🎣', '🦜', '🐚', '🔔', '🗺️', '🔭', '🦀', '🐟', '🐙', '☂️', '🎩', '🍌', '🍎', '🍉', '🎁', '🔑', '📦', '🎈', '🧤', '🐢', '🦆', '🐳', '🍋', '🧀', '🎺', '🥁', '🌵', '⏰'];
+
+/* --- Qui a bougé sur le pont ? (mémoire de travail visuelle) --- */
+const G_PONT = {
+  id: 'pont', short: 'Pont', skill: 'memoire', name: 'Qui a bougé sur le pont ?', cat: 'logic', color: '#A16207', fg: '#fff', icon: '⚓',
+  rule: l => 'Regarde bien les objets posés sur le pont. Un rideau tombe un instant. Quand il remonte, '
+    + ({ F: 'un objet a été remplacé par un autre : touche sa case.', N: 'un objet a été remplacé, ou un nouvel objet est apparu : touche sa case.', E: 'deux objets ont échangé leur place : touche l’un des deux.' })[l],
+  info: () => '8 manches',
+  run(c) {
+    const P = c.L({
+      F: { cols: 3, rows: 3, n: 6, see: 5000, lim: 12, kinds: ['rep'] },
+      N: { cols: 4, rows: 3, n: 9, see: 4000, lim: 10, kinds: ['rep', 'add', 'add'] },
+      E: { cols: 4, rows: 4, n: 12, see: 3000, lim: 10, kinds: ['swap'] }
+    });
+    const ROUNDS = 8, CELLS = P.cols * P.rows;
+    c.stage.innerHTML = `<div class="memmsg" id="dm" aria-live="polite"></div>
+      <div class="deck-wrap"><div class="deck" id="dk" style="grid-template-columns:repeat(${P.cols},1fr)"></div><div class="curtain" id="cu" aria-hidden="true"></div></div>`;
+    const dk = $('#dk', c.stage), cu = $('#cu', c.stage), dm = $('#dm', c.stage);
+    let r = 0, total = 0, okN = 0;
+    c.score(0); c.progress(0);
+    const cells = Array.from({ length: CELLS }, (_, i) => {
+      const b = document.createElement('button'); b.className = 'dcell'; b.dataset.i = i;
+      b.setAttribute('aria-label', `Case ${Math.floor(i / P.cols) + 1}-${i % P.cols + 1}`);
+      dk.appendChild(b); return b;
+    });
+    const paint = grid => cells.forEach((b, i) => { b.innerHTML = grid[i] ? `<span class="demo">${grid[i]}</span>` : ''; b.className = 'dcell' + (grid[i] ? '' : ' empty'); });
+    function next() {
+      if (r >= ROUNDS) return c.done(total, `${okN}/${ROUNDS} changement${okN > 1 ? 's' : ''} repéré${okN > 1 ? 's' : ''}`);
+      c.progress(r / ROUNDS);
+      const pool = c.rng.shuffle(DECK.slice());
+      const grid = Array(CELLS).fill(null);
+      c.rng.shuffle([...Array(CELLS).keys()]).slice(0, P.n).forEach((pos, k) => grid[pos] = pool[k]);
+      const spare = pool.slice(P.n);
+      const kind = c.rng.pick(P.kinds);
+      let after = grid.slice(), targets = [], said = '';
+      const full = grid.map((v, i) => v ? i : -1).filter(i => i >= 0), empty = grid.map((v, i) => v ? -1 : i).filter(i => i >= 0);
+      if (kind === 'add' && empty.length) { const i = c.rng.pick(empty); after[i] = spare[0]; targets = [i]; said = `${spare[0]} est apparu.`; }
+      else if (kind === 'swap') { const [a, b] = c.rng.shuffle(full.slice()).slice(0, 2); after[a] = grid[b]; after[b] = grid[a]; targets = [a, b]; said = `${grid[a]} et ${grid[b]} ont échangé leur place.`; }
+      else { const i = c.rng.pick(full); after[i] = spare[0]; targets = [i]; said = `${grid[i]} est devenu ${spare[0]}.`; }
+      let phase = 'see', stop = () => { };
+      paint(grid); cu.classList.remove('down'); c.ok(null);
+      dm.textContent = 'Mémorise le pont…';
+      c.later(() => {
+        if (c.over) return;
+        phase = 'curtain'; cu.classList.add('down'); dm.textContent = '…';
+        c.later(() => { if (c.over) return; paint(after); }, 450);
+        c.later(() => {
+          if (c.over) return;
+          cu.classList.remove('down'); phase = 'ask';
+          dm.textContent = kind === 'swap' ? 'Qui a échangé sa place ?' : 'Qu’est-ce qui a changé ?';
+          c.ok(cells[targets[0]]);
+          const t0 = c.now(), limit = c.tm(P.lim * 1000);
+          stop = c.timer(P.lim, () => answer(null, t0, limit));
+          cells.forEach(b => b.onpointerdown = e => { e.preventDefault(); answer(b, t0, limit); });
+        }, 1000);
+      }, c.tm(P.see));
+      function answer(b, t0, limit) {
+        if (c.over || phase !== 'ask') return; phase = 'done'; stop(); c.ok(null);
+        cells.forEach(x => x.onpointerdown = null);
+        const right = b && targets.includes(+b.dataset.i);
+        if (right) {
+          okN++; total += (100 / ROUNDS) * (0.85 + 0.15 * clamp01(1 - (c.now() - t0) / limit));
+          targets.forEach(i => cells[i].classList.add('mark-ok')); c.good(b, true); dm.textContent = said;
+        } else {
+          if (b) { b.classList.add('mark-ko'); c.bad(b); } else c.bad(dk);
+          targets.forEach(i => cells[i].classList.add('reveal')); dm.textContent = (b ? 'Raté : ' : 'Temps écoulé : ') + said;
+        }
+        c.score(okN); r++;
+        c.later(next, right ? 1100 : 1900);
+      }
+    }
+    next();
+  }
+};
+
+/* --- Le chrono de la marée : estimer une durée (mesurée en temps RÉEL) --- */
+const fmtS = x => x.toFixed(1).replace('.', ',');
+const G_MAREE = {
+  id: 'maree', short: 'Marée', skill: 'attention', name: 'Le chrono de la marée', cat: 'speed', color: '#0369A1', fg: '#fff', icon: '⏳', noTurbo: true,
+  rule: l => 'Touche une fois pour lancer la marée, puis touche encore quand tu penses que le nombre de secondes demandé est passé. Aucun chrono ne s’affiche : compte dans ta tête !'
+    + (l === 'F' ? ' Le sablier se montre pendant la première seconde pour t’aider.' : l === 'E' ? ' Des petites bêtes passent pour te distraire.' : ''),
+  info: () => '5 essais',
+  run(c) {
+    const P = c.L({ F: { t: [3, 3], glass: true, dist: 0 }, N: { t: [5, 8], glass: false, dist: 0 }, E: { t: [7, 12], glass: false, dist: 3 } });
+    const N = 5;
+    c.stage.innerHTML = `<div class="tide-goal" id="tg" aria-live="polite"></div>
+      <button class="tide-pad" id="tp"><span class="tide-sea" aria-hidden="true"></span><span class="tide-glass" id="hg" aria-hidden="true"></span><span class="tide-dist" id="td" aria-hidden="true"></span><span class="tide-lab" id="tl"></span></button>
+      <div class="tide-res" id="tr" aria-live="polite"></div>`;
+    const pad = $('#tp', c.stage), tg = $('#tg', c.stage), tl = $('#tl', c.stage), tr = $('#tr', c.stage), hg = $('#hg', c.stage), td = $('#td', c.stage);
+    let i = 0, state = 'idle', T = 0, r0 = 0, g0 = 0, ids = [];
+    const scores = [], errs = [];
+    c.score(`0/${N}`); c.progress(0);
+    function setup() {
+      if (i >= N) {
+        const avg = scores.reduce((a, b) => a + b, 0) / N;
+        const mAbs = errs.reduce((a, b) => a + Math.abs(b.e), 0) / Math.max(1, errs.length), mPct = Math.round(100 * errs.reduce((a, b) => a + Math.abs(b.e) / b.T, 0) / Math.max(1, errs.length));
+        return c.done(avg, `Écart moyen : ${fmtS(mAbs)} s (${mPct} %) sur ${N} essais`);
+      }
+      T = c.rng.int(P.t[0], P.t[1]); state = 'idle';
+      tg.innerHTML = `Arrête la marée après <b>${T} secondes</b>`;
+      tl.innerHTML = '<b>Touche pour lancer</b>';
+      pad.classList.remove('run'); hg.innerHTML = ''; td.innerHTML = ''; c.ok(pad);
+    }
+    function start() {
+      state = 'run'; r0 = performance.now(); g0 = c.now(); c.ok(null);
+      tl.innerHTML = '<b>La marée monte…</b><small>Touche quand tu penses qu’il est l’heure</small>';
+      pad.classList.add('run'); tr.textContent = ''; c.beep(520);
+      if (P.glass) {
+        hg.innerHTML = `<svg viewBox="0 0 60 90" style="--d:${T}s"><path d="M8 4h44M8 86h44" stroke="#10284A" stroke-width="6" stroke-linecap="round"/><path d="M12 8h36c0 18-14 26-14 37 0 11 14 19 14 37H12c0-18 14-26 14-37 0-11-14-19-14-37z" fill="#EAF5FF" stroke="#10284A" stroke-width="4"/><rect class="hg-top" x="14" y="12" width="32" height="28" fill="#FFC53D"/><rect class="hg-bot" x="14" y="52" width="32" height="30" fill="#FFC53D"/></svg>`;
+        hg.classList.remove('gone'); void hg.offsetWidth; hg.classList.add('show');
+        ids.push(c.later(() => hg.classList.add('gone'), 1000 * (c.rate || 1)));
+      }
+      if (P.dist) {
+        const used = new Set();
+        for (let k = 0; k < P.dist; k++) {
+          const at = c.rng.int(Math.round(T * 150), Math.round(T * 850)) * (c.rate || 1);
+          const what = c.rng.pick(['🐟', '🦀', '🐦', '🫧', '🐠'].filter(x => !used.has(x))); used.add(what);
+          const top = c.rng.int(12, 70), dir = c.rng.chance(.5);
+          ids.push(c.later(() => {
+            if (state !== 'run') return;
+            const s = document.createElement('span'); s.className = 'tide-bug' + (dir ? ' rtl' : ''); s.textContent = what; s.style.top = top + '%';
+            td.appendChild(s); setTimeout(() => s.remove(), 2200);
+          }, at));
+        }
+      }
+      (function watch() { ids.push(c.later(() => { if (state !== 'run') return; if (paused()) { cancelRun(); tr.textContent = 'Pause pendant l’essai : on le refait.'; return setup(); } if (performance.now() - r0 > T * 1600) finish(null); else watch(); }, 150)); })();
+    }
+    // une pause (menu, appel…) pendant l'essai fausse la mesure : on le refait sans le compter
+    const paused = () => (performance.now() - r0) - (c.now() - g0) / (c.rate || 1) > 1000;
+    function cancelRun() { ids.forEach(c.cancel); ids = []; hg.classList.add('gone'); pad.classList.remove('run'); }
+    function finish(stopAt) {
+      const wasPaused = paused();
+      cancelRun();
+      const real = stopAt == null ? null : (stopAt - r0) / 1000;
+      if (wasPaused) { tr.textContent = 'Pause pendant l’essai : on le refait.'; return setup(); }
+      state = 'show';
+      let sc = 0;
+      if (real == null) { tr.innerHTML = '<b>La marée est passée !</b> Bien trop tard.'; errs.push({ e: T * .6, T }); c.bad(pad); }
+      else {
+        const e = real - T, rel = Math.abs(e) / T;
+        sc = rel <= .05 ? 100 : rel >= .40 ? 0 : 100 * (.40 - rel) / .35;
+        errs.push({ e, T });
+        const gap = Math.abs(e) < .05 ? 'pile à l’heure !' : `${e > 0 ? '+' : '−'}${fmtS(Math.abs(e))} s trop ${e > 0 ? 'tard' : 'tôt'}`;
+        tr.innerHTML = `<b>${fmtS(real)} s</b> · ${gap}`;
+        if (sc >= 50) c.good(pad, false); else c.bad(pad);
+      }
+      scores.push(sc); i++;
+      c.score(`${i}/${N}`); c.progress(i / N);
+      tl.innerHTML = `<b>${Math.round(sc)} points</b>`;
+      c.later(setup, 1900);
+    }
+    pad.addEventListener('pointerdown', e => {
+      e.preventDefault(); if (c.over) return;
+      const now = performance.now();
+      if (state === 'idle') start(); else if (state === 'run') finish(now);
+    });
+    setup();
+  }
+};
+
+/* --- Le filet du pêcheur : mémoriser des positions (difficulté adaptative) --- */
+const FISH_SVG = '<svg viewBox="0 0 100 60" aria-hidden="true"><path d="M8 30C22 8 58 4 76 30 58 56 22 52 8 30z" fill="#FFB020" stroke="#7A4A00" stroke-width="4"/><path d="M74 30l20-16v32z" fill="#FF8A00" stroke="#7A4A00" stroke-width="4" stroke-linejoin="round"/><circle cx="26" cy="26" r="5" fill="#10284A"/></svg>';
+const G_FILET = {
+  id: 'filet', short: 'Filet', skill: 'memoire', name: 'Le filet du pêcheur', cat: 'speed', color: '#4D7C0F', fg: '#fff', icon: '🎣',
+  rule: l => 'Des poissons brillent un court instant dans le filet. Retiens leurs places, puis touche les cases où ils étaient. Deux erreurs et le filet remonte.'
+    + (l === 'E' ? ' Un crabe se cache aussi : ne touche pas sa case !' : ''),
+  info: () => '8 manches',
+  run(c) {
+    const P = c.L({
+      F: { n: 3, start: 3, min: 2, max: 6, ref: 2.9, lim: 10, crab: false },
+      N: { n: 4, start: 5, min: 3, max: 9, ref: 4.6, lim: 12, crab: false },
+      E: { n: 5, start: 7, min: 4, max: 12, ref: 5.7, lim: 14, crab: true }
+    });
+    const ROUNDS = 8, CELLS = P.n * P.n;
+    c.stage.innerHTML = `<div class="memmsg" id="fm" aria-live="polite"></div><div class="net" id="nt" style="grid-template-columns:repeat(${P.n},1fr)"></div>`;
+    const nt = $('#nt', c.stage), fm = $('#fm', c.stage);
+    const cells = Array.from({ length: CELLS }, (_, i) => { const b = document.createElement('button'); b.className = 'ncell'; b.setAttribute('aria-label', `Case ${Math.floor(i / P.n) + 1}-${i % P.n + 1}`); nt.appendChild(b); return b; });
+    let r = 0, k = P.start, pts = 0, found = 0, shown = 0, errT = 0, maxK = 0;
+    c.score(0); c.progress(0);
+    function next() {
+      if (r >= ROUNDS) return c.done(100 * clamp01(pts / (ROUNDS * P.ref)), `${found}/${shown} poissons retrouvés · ${plural(errT, 'erreur')} · jusqu’à ${maxK} poissons`);
+      c.progress(r / ROUNDS);
+      const pos = c.rng.shuffle([...Array(CELLS).keys()]);
+      const fish = new Set(pos.slice(0, k)), crab = P.crab ? pos[k] : -1;
+      shown += k; maxK = Math.max(maxK, k);
+      let phase = 'see', got = 0, err = 0, stop = () => { };
+      cells.forEach((b, i) => { b.className = 'ncell'; b.innerHTML = ''; b.onpointerdown = null; if (fish.has(i)) { b.classList.add('lit'); b.innerHTML = FISH_SVG; } else if (i === crab) { b.classList.add('lit', 'crab'); b.innerHTML = crabSVG(0); } });
+      fm.textContent = `${plural(k, 'poisson')} à retenir…`; c.ok(null);
+      c.later(() => {
+        if (c.over) return;
+        cells.forEach(b => { b.className = 'ncell'; b.innerHTML = ''; });
+        phase = 'ask'; fm.textContent = `Où étaient les ${plural(k, 'poisson')} ?`;
+        const hintNext = () => c.ok(cells.find((b, i) => fish.has(i) && !b.classList.contains('mark-ok')) || null);
+        hintNext();
+        stop = c.timer(P.lim, () => end());
+        cells.forEach((b, i) => b.onpointerdown = e => {
+          e.preventDefault(); if (c.over || phase !== 'ask' || b.classList.contains('mark-ok') || b.classList.contains('mark-ko')) return;
+          if (fish.has(i)) { got++; b.classList.add('mark-ok'); b.innerHTML = FISH_SVG; c.good(b, false); c.score(pts + Math.max(0, got - err)); hintNext(); if (got === k) end(); }
+          else { err++; b.classList.add('mark-ko'); if (i === crab) b.innerHTML = crabSVG(0); c.bad(b); if (err >= 2) end(); }
+        });
+      }, c.tm(1500));
+      function end() {
+        if (phase !== 'ask') return; phase = 'done'; stop(); c.ok(null);
+        cells.forEach((b, i) => { b.onpointerdown = null; if (fish.has(i) && !b.classList.contains('mark-ok')) { b.classList.add('reveal'); b.innerHTML = FISH_SVG; } });
+        pts += Math.max(0, got - err); found += got; errT += err; c.score(pts);
+        const perfect = got === k && err === 0;
+        fm.textContent = perfect ? 'Filet plein ! Un poisson de plus.' : got < k ? 'Le filet remonte… un poisson de moins.' : 'Presque ! On garde le même nombre.';
+        k = Math.max(P.min, Math.min(P.max, k + (perfect ? 1 : got < k ? -1 : 0)));
+        r++; c.later(next, perfect ? 900 : 1500);
+      }
+    }
+    next();
+  }
+};
+
+/* --- Les énigmes du phare : banque de questions (questions.js) --- */
+const ENIG_TYPES = { suite: 'Suite', intrus: 'Intrus', deduction: 'Déduction', observation: 'Observation', 'calcul-astucieux': 'Calcul astucieux', mots: 'Jeu de mots' };
+function enigPick(c, n) {
+  const bank = (typeof QUESTIONS !== 'undefined' ? QUESTIONS : []).filter(q => q.lv === c.level);
+  // défi du jour, famille, duel : mêmes questions pour tout le monde (même graine), sans tenir compte de l'historique
+  if (['daily', 'family', 'duel'].includes(c.mode) || typeof store === 'undefined') return { list: c.rng.shuffle(bank.slice()).slice(0, n), mark: false };
+  const all = store.get('enigmes:vus', {}), seen = all[c.level] || [];
+  if (c.practice) { const old = bank.filter(q => seen.includes(q.id)); return { list: c.rng.shuffle((old.length >= n ? old : bank).slice()).slice(0, n), mark: false }; }
+  const fresh = c.rng.shuffle(bank.filter(q => !seen.includes(q.id)));
+  if (fresh.length >= n) return { list: fresh.slice(0, n), mark: true };
+  // toutes (ou presque) déjà vues : on finit les nouvelles, on complète avec d'anciennes et on recommence un cycle
+  const fill = c.rng.shuffle(bank.filter(q => seen.includes(q.id))).slice(0, n - fresh.length);
+  all[c.level] = []; store.set('enigmes:vus', all);
+  return { list: [...fresh, ...fill], mark: true };
+}
+const G_ENIGMES = {
+  id: 'enigmes', short: 'Énigmes', skill: 'logique', name: 'Les énigmes du phare', cat: 'logic', color: '#BE123C', fg: '#fff', icon: '💡',
+  rule: () => 'Lis bien chaque question : la réponse est sous tes yeux, pas besoin de connaissances. Touche la bonne réponse parmi les 4. Une explication suit chaque réponse.',
+  info: () => '6 questions',
+  run(c) {
+    const ROUNDS = 6, LIM = 25;
+    const { list, mark } = enigPick(c, ROUNDS);
+    c.stage.innerHTML = `<div class="enig-card"><span class="enig-type" id="et"></span><p class="enig-q" id="eq"></p></div>
+      <div class="answers" id="ch"></div><div class="enig-why" id="ew" aria-live="polite"></div><button class="btn enig-next" id="en" hidden>Suivant</button>`;
+    const et = $('#et', c.stage), eq = $('#eq', c.stage), ch = $('#ch', c.stage), ew = $('#ew', c.stage), en = $('#en', c.stage);
+    let r = 0, total = 0, okN = 0, onNext = null;
+    c.score(0); c.progress(0);
+    en.addEventListener('pointerdown', e => { e.preventDefault(); if (onNext) onNext(); });
+    function next() {
+      if (r >= Math.min(ROUNDS, list.length)) return c.done(list.length ? total * ROUNDS / list.length : 0, `${okN}/${list.length} bonne${okN > 1 ? 's' : ''} réponse${okN > 1 ? 's' : ''}`);
+      const Q = list[r];
+      c.progress(r / ROUNDS);
+      et.textContent = `${ENIG_TYPES[Q.type] || 'Énigme'} · ${r + 1}/${list.length}`;
+      eq.textContent = Q.q.replace(/([\d▲△🐟🦀]),? (?=[\d▲△🐟🦀…?])/gu, m => m.replace(' ', '\u00a0'));
+      ew.textContent = ''; ew.className = 'enig-why'; en.hidden = true; onNext = null;
+      const opts = c.rng.shuffle(Q.choices.map((t, i) => ({ t, ok: i === Q.a })));
+      const long = opts.some(o => o.t.length > 9);
+      ch.className = 'answers ' + (long ? 'c1' : 'c2');
+      ch.innerHTML = '';
+      let answered = false;
+      const t0 = c.now(), limit = c.tm(LIM * 1000);
+      const stop = c.timer(LIM, () => reply(null));
+      opts.forEach(o => {
+        const b = document.createElement('button'); b.className = 'ans enig' + (long ? ' long' : ''); b.textContent = o.t;
+        if (o.ok) b.dataset.ok = '1';
+        b.addEventListener('pointerdown', e => { e.preventDefault(); reply(b); });
+        ch.appendChild(b);
+      });
+      if (c.practice) c.ok(ch.querySelector('[data-ok]'));
+      function reply(b) {
+        if (c.over || answered) return; answered = true; stop();
+        if (mark) { const all = store.get('enigmes:vus', {}); all[c.level] = [...new Set([...(all[c.level] || []), Q.id])]; store.set('enigmes:vus', all); }
+        const right = !!(b && b.dataset.ok), good = ch.querySelector('[data-ok]');
+        if (right) { okN++; total += (100 / ROUNDS) * (0.85 + 0.15 * clamp01(1 - (c.now() - t0) / limit)); b.classList.add('mark-ok'); c.good(b, true); }
+        else { if (b) { b.classList.add('mark-ko'); c.bad(b); } else c.bad(ch); if (good) good.classList.add('reveal'); }
+        c.score(okN); r++;
+        ew.innerHTML = `<b>${right ? '✓ Bien vu !' : b ? '✗ Pas cette fois.' : '⏱ Temps écoulé.'}</b> ${esc5(Q.why)}`;
+        ew.classList.add(right ? 'ok' : 'ko');
+        let gone = false; const go = () => { if (gone || c.over) return; gone = true; onNext = null; next(); };
+        onNext = go; en.hidden = false; en.textContent = r >= list.length ? 'Voir mon score' : 'Suivant';
+        if (right) c.later(go, c.tm(1500));
+        requestAnimationFrame(() => { try { en.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) { } });
+      }
+    }
+    next();
+  }
+};
+const esc5 = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+
+const GAMES = [G_LANTERNE, G_BATEAUX, G_VENT, G_CONSTEL, G_GUE, G_LUCIOLES, G_PHARES, G_COLLIER, G_RECIF, G_COURANTS, G_CABINES, G_MOUETTES, G_CRABES, G_BULLES, G_MYSTERE, G_VITRAUX, G_SUITES, G_BOUTIQUE, G_PONT, G_MAREE, G_FILET, G_ENIGMES];

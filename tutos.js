@@ -203,7 +203,7 @@ const TUTOS = {
       base: ['Regarde chaque ligne de gauche à droite.', 'Trouve ce qui change : la forme, la couleur ou le nombre.', 'Choisis la pièce qui respecte toutes les règles.'],
       N: ['Trois choses changent : la forme par ligne, la couleur en diagonale et le nombre par colonne. Vérifie-les une à une.'], E: ['Les trois choses changent : avance règle par règle.']
     },
-    ex: () => `<div class="ex-vit">${[[0, 1], [0, 2], [0, 3], [1, 1], [1, 2], [1, 3], [2, 1], [2, 2], null].map(v => v ? `<span>${vitralCell({ shape: v[0], color: 0, count: v[1] }).replace('class="vc"', 'class="vc mini"')}</span>` : '<span class="q">?</span>').join('')}</div><div class="ex-row"><span class="ex-word good">${vitralCell({ shape: 2, color: 0, count: 3 }).replace('class="vc"', 'class="vc mini"')}</span><span class="ex-word">${vitralCell({ shape: 2, color: 0, count: 2 }).replace('class="vc"', 'class="vc mini"')}</span></div>`,
+    ex: () => `<div class="ex-vit">${[[0, 1], [0, 2], [0, 3], [1, 1], [1, 2], [1, 3], [2, 1], [2, 2], null].map(v => v ? `<span>${vitralCell({ shape: v[0], color: 0, count: v[1] }).replace('class="vc', 'class="vc mini')}</span>` : '<span class="q">?</span>').join('')}</div><div class="ex-row"><span class="ex-word good">${vitralCell({ shape: 2, color: 0, count: 3 }).replace('class="vc', 'class="vc mini')}</span><span class="ex-word">${vitralCell({ shape: 2, color: 0, count: 2 }).replace('class="vc', 'class="vc mini')}</span></div>`,
     legend: () => 'Chaque ligne a sa forme (ronds, carrés, triangles) et le nombre augmente de gauche à droite : 1, 2, 3. Il manque donc 3 triangles.',
     oops: 'Vérifie chaque règle : la forme de la ligne, la couleur, puis le nombre.',
     goal: 2
@@ -229,7 +229,68 @@ const TUTOS = {
     legend: l => l === 'F' ? '5 € + 2 € = 7 € : le compte est juste !' : '2 € + 1 € + 50 c + 20 c = 3,70 € : le compte est juste !',
     oops: 'Trop payé ! Commence par les grosses pièces, puis complète avec les petites.',
     goal: 3
+  }  ,
+  pont: {
+    but: 'Repère ce qui a changé sur le pont',
+    rules: {
+      base: ['Regarde bien chaque objet et sa place.', 'Le rideau tombe, puis remonte.', 'Touche la case qui a changé.'],
+      F: ['Un objet a été remplacé par un autre.'],
+      N: ['Un objet a été remplacé… ou un nouvel objet est apparu sur une case vide.'],
+      E: ['Deux objets ont échangé leur place : touche l’un des deux.']
+    },
+    ex: l => {
+      const A = ['⚓', '🦜', '', '🔔', '', '🐚'], B = A.slice();
+      let k;
+      if (l === 'E') { B[0] = '🐚'; B[5] = '⚓'; k = [0, 5]; } else if (l === 'N') { B[2] = '🎩'; k = [2]; } else { B[1] = '🍌'; k = [1]; }
+      const g = (arr, mark) => `<span class="ex-deck">${arr.map((v, i) => `<i class="${mark && k.includes(i) ? 'good' : ''}">${v}</i>`).join('')}</span>`;
+      return `<div class="ex-row ex-pont">${g(A)}<b>→</b>${g(B, true)}</div>`;
+    },
+    legend: l => l === 'E' ? 'L’ancre et le coquillage ont échangé leur place : touche l’un des deux.'
+      : l === 'N' ? 'Un chapeau est apparu sur une case qui était vide : touche-la.' : 'Le perroquet a été remplacé par une banane : touche sa case.',
+    oops: 'Pas cette case. Avant que le rideau tombe, regarde chaque objet et sa place.',
+    goal: 2
+  },
+  maree: {
+    but: 'Arrête la marée pile à l’heure',
+    rules: {
+      base: ['Lis combien de secondes il faut attendre.', 'Touche une fois pour lancer, compte dans ta tête.', 'Touche encore quand tu penses que c’est l’heure.'],
+      F: ['Le sablier se montre au début : regarde à quelle vitesse il coule.'],
+      E: ['Des petites bêtes passent : ne te laisse pas distraire.']
+    },
+    ex: l => {
+      const T = l === 'F' ? 3 : l === 'N' ? 6 : 9, s = l === 'F' ? '3,2' : l === 'N' ? '5,7' : '9,4', gap = l === 'F' ? '+0,2 s trop tard' : l === 'N' ? '−0,3 s trop tôt' : '+0,4 s trop tard';
+      return `<div class="ex-op">Arrête après ${T} secondes</div><div class="ex-row"><span class="ex-word">1. Touche : c’est parti</span><b>→</b><span class="ex-word good">2. Touche : ${s} s</span></div><p class="ex-gap">${gap} · très bien !</p>`;
+    },
+    legend: () => 'Plus tu t’arrêtes près du temps demandé, plus tu gagnes de points. Un écart très petit (5 % ou moins) donne 100 points.',
+    oops: 'Un peu loin du compte. Compte calmement « un crocodile, deux crocodiles… » et touche au bon moment.',
+    goal: 2
+  },
+  filet: {
+    but: 'Retrouve les poissons du filet',
+    rules: {
+      base: ['Des poissons brillent un court instant.', 'Quand ils disparaissent, touche les cases où ils étaient.', 'Deux erreurs et le filet remonte.'],
+      E: ['Ne touche pas la case du crabe : c’est une erreur.']
+    },
+    ex: l => {
+      const f = [0, 4, 8], cr = l === 'E' ? 6 : -1, cell = (i, on) => `<i class="${on && f.includes(i) ? 'on' : ''}${on && i === cr ? ' cr' : ''}">${on && f.includes(i) ? FISH_SVG : on && i === cr ? crabSVG(0) : ''}</i>`;
+      return `<div class="ex-row"><span class="ex-net">${Array.from({ length: 9 }, (_, i) => cell(i, true)).join('')}</span><b>→</b><span class="ex-net">${Array.from({ length: 9 }, (_, i) => `<i class="${f.includes(i) ? 'good' : ''}">${f.includes(i) ? '✓' : ''}</i>`).join('')}</span></div>`;
+    },
+    legend: l => 'Les poissons étaient en diagonale : touche ces trois cases, dans n’importe quel ordre. Filet plein ? Un poisson de plus à la manche suivante.' + (l === 'E' ? ' Le crabe, lui, il faut l’éviter.' : ''),
+    oops: 'Pas de poisson ici. Essaie de voir la forme que dessinent les poissons.',
+    goal: 5
+  },
+  enigmes: {
+    but: 'La réponse est sous tes yeux',
+    rules: {
+      base: ['Lis toute la question, lentement.', 'Cherche le piège : la réponse est écrite ou visible.', 'Touche la bonne réponse, puis lis l’explication.'],
+      E: ['Ici, les pièges sont vicieux : vérifie avant de toucher.']
+    },
+    ex: () => `<div class="ex-op ex-q">Combien de lettres dans le mot OCÉAN ?</div><div class="ex-row"><span class="ex-word good">5</span><span class="ex-word">4</span><span class="ex-word">6</span><span class="ex-word">7</span></div>`,
+    legend: () => 'O-C-É-A-N : 5 lettres. Pas besoin de savoir des choses : il suffit de bien regarder.',
+    oops: 'Relis la question mot à mot : la réponse s’y trouve.',
+    goal: 2
   }
+
 };
 
 function tutoRules(id, lvl) {

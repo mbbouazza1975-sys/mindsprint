@@ -138,10 +138,22 @@ const WHAT = {
   recif: 'Repère la même forme tournée', courants: 'Suis les flèches jusqu’à l’île',
   cabines: 'Énigme : place chaque animal', mouettes: 'Devine la règle de tri secrète',
   crabes: 'Tape les crabes qui sortent', bulles: 'Trouve les bulles qui font le total',
-  mystere: 'Devine la photo qui se dévoile', vitraux: 'Casse-tête : complète la grille',
-  suites: 'Trouve le nombre suivant', boutique: 'Paie le prix exact en euros'
+  mystere: 'Devine l’image qui se dévoile', vitraux: 'Casse-tête : complète la grille',
+  suites: 'Trouve le nombre suivant', boutique: 'Paie le prix exact en euros',
+  pont: 'Retrouve l’objet qui a changé', maree: 'Arrête le temps pile à l’heure',
+  filet: 'Retiens où brillaient les poissons', enigmes: 'Énigmes de logique, la réponse est sous tes yeux'
 };
-const NEW_GAMES = ['mystere', 'vitraux', 'suites', 'boutique'];
+const NEW_GAMES = ['pont', 'maree', 'filet', 'enigmes'];
+/* Compétences travaillées (champ skill de chaque jeu) et parcours thématiques */
+const SKILLS = { reflexe: 'Réflexes', memoire: 'Mémoire', logique: 'Logique', calcul: 'Calcul', attention: 'Attention', espace: 'Espace', langage: 'Langage' };
+const BAD_PAIRS = [['bateaux', 'crabes'], ['collier', 'vitraux']]; // trop proches : jamais dans la même partie
+const pairOk = (list, g) => !BAD_PAIRS.some(([a, b]) => (g.id === a && list.some(x => x.id === b)) || (g.id === b && list.some(x => x.id === a)));
+const THEMES = {
+  memoire: { name: 'Mémoire', icon: '🧠', sub: 'Retenir des objets, des places et des ordres', near: ['recif', 'courants', 'constellation'] },
+  logique: { name: 'Logique', icon: '🧩', sub: 'Règles cachées, déductions et énigmes', near: ['suites', 'courants'] },
+  calcul: { name: 'Calcul', icon: '🔢', sub: 'Calcul mental, monnaie et suites de nombres', near: ['lucioles', 'enigmes'] },
+  reflexe: { name: 'Réflexes', icon: '⚡', sub: 'Réagir vite, et sans se tromper', near: ['constellation', 'maree', 'filet', 'mystere'] }
+};
 const GROUPS = [
   ['speed', '⚡ Rapidité et réflexes', g => g.cat === 'speed' && !['gue', 'boutique'].includes(g.id)],
   ['logic', '🧩 Logique et mémoire', g => g.cat === 'logic' && !['bulles', 'suites'].includes(g.id)],
@@ -195,7 +207,7 @@ function home() {
   const adj = autoAdjust();
   settings.level = clampLevel(settings.level);
   const first = !store.get('seen', false), lvl = settings.level;
-  const st = streakNow(), daily = store.get('daily', {}), doneToday = daily.d === today();
+  const st = streakNow(), daily = store.get('daily', {}), doneToday = daily.d === today(), jk = st.n > 0 && jokerFree();
   const hist = store.get('hist', []), m10 = hist.length ? Math.round(hist.slice(-10).reduce((x, h) => x + h.score, 0) / Math.min(10, hist.length)) : null;
   const stars = GAMES.map(g => { const b = bestOf(g.id); return b < 0 ? 0 : starsOf(b); }), tot = stars.reduce((a, b) => a + b, 0);
   const myst = GAMES.find(g => g.id === 'mystere');
@@ -203,12 +215,12 @@ function home() {
    <div class="home-sky" aria-hidden="true">${HOME_ART}</div>
    <header class="hh"><div><div class="wordmark">Mind<b>Sprint</b></div><div class="slogan">Muscle tes méninges en t’amusant !</div><button class="prof-chip" id="pchip" aria-label="Profil : ${prof().name}. Changer">${prof().icon} ${prof().name} <span class="pc-ch">· changer</span></button></div>
      <div class="hh-r"><button class="iconbtn" id="help" aria-label="Comment jouer ?">?</button><button class="iconbtn" id="set" aria-label="Réglages">⚙</button></div></header>
-   <div class="hello"><div class="bubble">${adj && !adj.same ? `Ta dernière journée de jeu : ${adj.avg}/100 de moyenne, ${adj.up ? 'je monte' : 'je baisse'} ton niveau à « ${LEVELS[adj.nl].name} » ${adj.up ? '💪' : '🙂'}` : first ? 'Salut, moi c’est Mèche ! Choisis un jeu et je t’explique tout avant de commencer.' : st.n ? `Série de ${st.n} jour${st.n > 1 ? 's' : ''} 🔥 ${doneToday ? 'Défi du jour réussi, bravo !' : 'Le défi du jour t’attend.'}` : 'Choisis un jeu ou lance une partie : je t’explique les règles avant chaque épreuve.'}</div>${MECHE}</div>
+   <div class="hello"><div class="bubble">${adj && !adj.same ? `Ta dernière journée de jeu : ${adj.avg}/100 de moyenne, ${adj.up ? 'je monte' : 'je baisse'} ton niveau à « ${LEVELS[adj.nl].name} » ${adj.up ? '💪' : '🙂'}` : first ? 'Salut, moi c’est Mèche ! Choisis un jeu et je t’explique tout avant de commencer.' : st.saved && !doneToday ? `Tu as manqué le défi hier… Pas de panique : ton joker 🛟 de la semaine garde ta série de ${st.n} jour${st.n > 1 ? 's' : ''} si tu joues aujourd’hui !` : st.n ? `Série de ${st.n} jour${st.n > 1 ? 's' : ''} 🔥 ${doneToday ? 'Défi du jour réussi, bravo !' : 'Le défi du jour t’attend.'}` : 'Choisis un jeu ou lance une partie : je t’explique les règles avant chaque épreuve.'}</div>${MECHE}</div>
    <div class="home-sheet">
    <section class="hs-play">
      <button class="play-main" id="solo"><span class="pm-ic">▶</span><span><b>Jouer seul</b><small>8 jeux au hasard · score sur 100 · ${settings.chrono ? '⏱ avec chrono' : '🌿 sans chrono'}</small></span></button>
-<button class="mode m-daily ${doneToday ? 'done' : ''}" id="daily"><span class="md-ic">📅</span><span><b>Défi du jour ${st.n ? `<em class="fire">🔥 ${st.n}</em>` : ''}</b><small>${doneToday ? `Fait aujourd’hui : ${daily.score}/100. Tu peux le rejouer pour t’entraîner (ta série ne change pas).` : '5 jeux, les mêmes pour tout le monde aujourd’hui. Joue chaque jour pour allonger ta série.'}</small></span></button>
-     <button class="play-feat" id="feat" style="--c:${myst.color}"><span class="pf-ic">${myst.icon}</span><span><em class="nw">Nouveau</em><b>${myst.name}</b><small>Une photo se dévoile : devine-la avant les autres !</small></span><span class="pf-go">Jouer</span></button>
+<button class="mode m-daily ${doneToday ? 'done' : ''}" id="daily"><span class="md-ic">📅</span><span><b>Défi du jour ${st.n ? `<em class="fire">🔥 ${st.n}</em>` : ''}${jk ? '<em class="fire joker" title="Joker de série : sauve ta série si tu rates un seul jour" aria-label="1 joker de série disponible cette semaine">🛟</em>' : ''}</b><small>${doneToday ? `Fait aujourd’hui : ${daily.score}/100. Tu peux le rejouer pour t’entraîner (ta série ne change pas).` : '5 jeux, les mêmes pour tout le monde aujourd’hui. Joue chaque jour pour allonger ta série.'}${jk ? ' 🛟 Joker : 1 jour raté par semaine est pardonné.' : ''}</small></span></button>
+     <button class="play-feat" id="feat" style="--c:${myst.color}"><span class="pf-ic">${myst.icon}</span><span><em class="nw">À la une</em><b>${myst.name}</b><small>Une image se dévoile : devine-la avant les autres !</small></span><span class="pf-go">Jouer</span></button>
    </section>
    <section class="hs-sec">
      <div class="sec-h"><h2>Choisis un jeu</h2><span class="small">${GAMES.length} jeux</span></div>
@@ -220,6 +232,7 @@ function home() {
      <div class="sec-h"><h2>Autres façons de jouer</h2></div>
      <div class="modes">
        <button class="mode m-duel" id="duel"><span class="md-ic">🤖</span><span><b>Duel contre Mèche</b><small>Toi contre l’ordinateur sur un jeu de vitesse : le premier qui marque le plus gagne.</small></span></button>
+       <button class="mode m-theme" id="theme"><span class="md-ic">🎯</span><span><b>Parcours thématique</b><small>Mémoire, logique, calcul ou réflexes : 5 jeux pour travailler une compétence.</small></span></button>
        <button class="mode m-fam" id="fam"><span class="md-ic">👨‍👩‍👧‍👦</span><span><b>En famille</b><small>2 à 4 joueurs sur le même téléphone, chacun son tour, podium à la fin.</small></span></button>
        <button class="mode m-turbo" id="turbo"><span class="md-ic">🚀</span><span><b>Mode turbo</b><small>Un jeu qui accélère sans arrêt : tiens le plus longtemps possible.</small></span></button>
        <button class="mode m-prog" id="prog"><span class="md-ic">📈</span><span><b>Mes progrès</b><small>${m10 != null ? `Ta moyenne : ${m10}/100 · ` : ''}graphique de ton évolution et badges.</small></span></button>
@@ -243,6 +256,7 @@ function home() {
   on('#chr', 'click', () => { settings.chrono = !settings.chrono; saveSettings(); const y = window.scrollY; home(); window.scrollTo(0, y); });
   on('#duel', 'click', duelSetup);
   on('#fam', 'click', () => familySetup());
+  on('#theme', 'click', themeSheet);
   on('#turbo', 'click', turboPick);
   on('#prog', 'click', progress);
   on('#inst', 'click', async () => { if (!deferredInstall) return; deferredInstall.prompt(); try { await deferredInstall.userChoice; } catch (e) { } deferredInstall = null; home(); });
@@ -255,7 +269,8 @@ function helpSheet() {
       <li><b>Avant chaque jeu,</b> Mèche explique la règle avec un exemple. Tu peux faire un <em>essai sans chrono</em> pour comprendre.</li>
       <li><b>Le niveau</b> se choisit en haut de la liste : Échauffement (enfants), En forme, Costaud.</li>
       <li><b>Chaque jeu</b> donne un score sur 100 et jusqu’à 3 étoiles. Bats ton record !</li>
-      <li><b>Chaque jour,</b> le défi du jour garde ta série 🔥 en vie. Tes progrès et ta moyenne sont dans <em>Mes progrès</em>.</li>
+      <li><b>Chaque jour,</b> le défi du jour garde ta série 🔥 en vie. Un joker 🛟 par semaine la sauve si tu rates un seul jour. Tes progrès et ta moyenne sont dans <em>Mes progrès</em>.</li>
+      <li><b>Pour travailler une compétence</b> (mémoire, logique, calcul, réflexes), choisis un <em>Parcours thématique</em>.</li>
     </ol>
     <button class="btn" id="ok">Compris !</button>`, (root, close) => { on('#ok', 'click', close, root); root.addEventListener('click', e => { if (e.target === root) close(); }); });
 }
@@ -369,7 +384,7 @@ function practiceDone(g) {
   Clock.reset(); store.set(tutoKey(g), true); SFX('end');
   app.innerHTML = `<div class="screen play result">${scene(g.id)}
     <div class="card">${MECHE.replace('data-mood="neutral"', 'data-mood="happy"')}<h2>Tu as compris !</h2>
-    <p style="font-weight:500">Le vrai jeu commence maintenant, avec le chrono.</p>${rulesHTML(g, S.level)}</div>
+    <p style="font-weight:500">Le vrai jeu commence maintenant${settings.chrono ? ', avec le chrono' : ', à ton rythme'}.</p>${rulesHTML(g, S.level)}</div>
     <div class="spacer"></div><button class="btn go" id="go">C’est parti !</button><button class="btn secondary" id="again">Refaire l’essai</button></div>`;
   on('#go', 'click', () => play(g, false));
   on('#again', 'click', () => play(g, true));
@@ -435,7 +450,7 @@ function play(g, practice) {
   const turbo = S.mode === 'turbo' && !practice;
   if (turbo) $('.hud').insertAdjacentHTML('afterend', '<div class="duelbar">🚀 Turbo : ça accélère !</div>');
   const c = CUR = {
-    stage, level: S.level, rng, over: false, practice: !!practice, rate: Clock.rate || 1,
+    stage, level: S.level, mode: S.mode, rng, over: false, practice: !!practice, rate: Clock.rate || 1,
     L: o => o[S.level],
     tm: ms => ms * (settings.moreTime ? 1.5 : 1) * (practice ? 1.6 : 1) * (turbo ? Math.max(0.55, 1 - Math.max(0, Clock.t - 2100) / 60000 * 0.9) : 1),
     later: (fn, ms) => Clock.later(fn, ms),
@@ -554,31 +569,64 @@ function profileOf(scores, games) {
 
 function soloFinal() {
   const total = totalOf(S.scores, S.games), pf = profileOf(S.scores, S.games);
-  const prev = store.get('best:' + S.level, null), rec = prev == null || total > prev;
+  const th = S.theme && THEMES[S.theme];
+  const prev = th ? null : store.get('best:' + S.level, null), rec = !th && (prev == null || total > prev);
   if (rec) store.set('best:' + S.level, total);
-  const hist = store.get('hist', []); hist.push({ d: today(), t: Date.now(), kind: S.mode, level: S.level, score: total, sp: pf.sp, lo: pf.lo }); store.set('hist', hist.slice(-300));
-  let dailyMsg = '';
-  if (S.mode === 'daily' && !S.replay) { const st = markDaily(total); dailyMsg = `🔥 Série : ${st.n} jour${st.n > 1 ? 's' : ''} d’affilée${st.n >= 3 ? ' · Bonus de série !' : ''}`; if (total >= 80) award('score80'); }
+  const hist = store.get('hist', []); hist.push({ d: today(), t: Date.now(), kind: th ? 'theme' : S.mode, level: S.level, score: total, sp: pf.sp, lo: pf.lo }); store.set('hist', hist.slice(-300));
+  let dailyMsg = '', jokerMsg = '', stD = null;
+  if (S.mode === 'daily' && !S.replay) {
+    stD = markDaily(total); dailyMsg = `🔥 Série : ${stD.n} jour${stD.n > 1 ? 's' : ''} d’affilée${stD.n >= 3 ? ' · Bonus de série !' : ''}`; if (total >= 80) award('score80');
+    if (stD.joker) jokerMsg = `Tu avais manqué un jour, alors j’ai utilisé ton joker 🛟 de la semaine : ta série continue ! Un nouveau joker arrive lundi.`;
+  }
+  if (S.mode === 'daily' && !stD) stD = streakNow();
   const md = medalOf(total), nxt = total < 40 ? [40, 'le bronze'] : total < 60 ? [60, 'l’argent'] : total < 80 ? [80, 'l’or'] : null;
   const nextLvl = S.level === 'F' && total >= 70 ? ' Essaie « En forme » la prochaine fois ?' : S.level === 'N' && total >= 70 ? ' Prêt pour « Costaud » ?' : '';
   app.innerHTML = `<div class="screen play result">${scene('constellation')}
-    <div class="card">${md ? medalSVG(md) : MECHE}<p class="muted" style="margin:0">${S.mode === 'daily' ? 'Défi du jour' + (S.replay ? ' (rejoué, hors série)' : '') : 'Jouer seul'} · ${LEVELS[S.level].name}</p>
+    <div class="card">${md ? medalSVG(md) : MECHE}<p class="muted" style="margin:0">${S.mode === 'daily' ? 'Défi du jour' + (S.replay ? ' (rejoué, hors série)' : '') : th ? `Parcours ${th.name}` : 'Jouer seul'} · ${LEVELS[S.level].name}</p>
     <div class="bigscore" id="tot">0<small> / 100</small></div>
     <p style="font-weight:700;margin:0">${md ? MEDALS[md][2] : 'Pas encore de médaille'}${rec && prev != null ? ' · 🏆 Nouveau record !' : ''}</p>
     ${dailyMsg ? `<p class="streakline">${dailyMsg}</p>` : ''}
+    ${jokerMsg ? `<div class="coach joker-msg">${MECHE.replace('data-mood="neutral"', 'data-mood="happy"')}<div class="bubble">${jokerMsg}</div></div>` : ''}
     ${sparkline(hist.slice(-12).map(h => h.score))}
     <p class="muted small">${nxt ? `Encore ${nxt[0] - total} point${nxt[0] - total > 1 ? 's' : ''} pour ${nxt[1]}.` : 'Le sommet de l’archipel !'} ${pf.label}.${nextLvl}</p>
     <div class="split"><div class="sp">⚡ Rapidité<b>${pf.sp}</b></div><div class="lo">⚙ Logique<b>${pf.lo}</b></div></div>
-    <div class="isles">${S.games.map(g => { const s = S.scores[g.id] || 0; return `<span class="isle" title="${g.name} : ${s}">${g.icon}<em>${'★'.repeat(starsOf(s)) || s}</em></span>`; }).join('')}</div></div>
-    <button class="btn go" id="again" style="margin-top:16px">Rejouer le test</button><button class="btn secondary" id="home">Retour à l’accueil</button></div>`;
+    <div class="isles">${S.games.map(g => { const s = S.scores[g.id] || 0; return `<span class="isle-w" title="${g.name} : ${s}/100"><span class="isle" aria-hidden="true">${g.icon}<em>${'★'.repeat(starsOf(s)) || s}</em></span><small>${g.short || g.name}</small><span class="sr">${g.name} : ${s} sur 100</span></span>`; }).join('')}</div></div>
+    ${S.mode === 'daily' ? '<button class="btn accent share-btn" id="share" style="margin-top:16px">📤 Partager mon score</button>' : ''}
+    <button class="btn go" id="again" style="margin-top:${S.mode === 'daily' ? 10 : 16}px">${th ? 'Rejouer le parcours' : 'Rejouer le test'}</button><button class="btn secondary" id="home">Retour à l’accueil</button></div>`;
   countUp($('#tot'), total, '<small> / 100</small>');
   if (rec && prev != null) SFX('record'); else SFX('end');
   if (md) setTimeout(() => confetti(md === 'or' ? 60 : 36), 500);
   on('#again', 'click', () => { if (S.mode === 'daily') { startTurboOrHome(); return; } S = { ...S, seed: newSeed(), idx: 0, scores: {}, details: {} }; intro(); });
-  if (S.mode === 'daily') { const b = $('#again'); if (b) b.textContent = 'Essayer le mode turbo 🚀'; }
+  if (S.mode === 'daily') { const b = $('#again'); if (b) b.textContent = 'Essayer le mode turbo 🚀'; on('#share', 'click', () => shareScore(shareText(total, S.games, S.scores, stD ? stD.n : 0))); }
   on('#home', 'click', home);
 }
 function startTurboOrHome() { turboPick(); }
+/* ---------- Partage du défi du jour (texte façon « grille de carrés ») ---------- */
+const SHARE_URL = 'https://mbbouazza1975-sys.github.io/mindsprint/';
+function shareText(total, games, scores, streak) {
+  const d = new Date(), dd = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const sq = games.map(g => { const s = scores[g.id] || 0; return s >= 65 ? '🟩' : s >= 40 ? '🟨' : '🟥'; }).join('');
+  return `MindSprint · Défi du ${dd} · ${total}/100${streak > 0 ? ` 🔥${streak}` : ''}\n${sq}\n${SHARE_URL}`;
+}
+async function shareScore(text) {
+  if (navigator.share) {
+    try { await navigator.share({ text }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  let ok = false;
+  try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); ok = true; } } catch (e) { }
+  if (!ok) {
+    const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(ta); ta.select(); try { ok = document.execCommand('copy'); } catch (e) { } ta.remove();
+  }
+  if (ok) { toast('📋', 'Copié !', 'Colle ton score dans un message.'); return; }
+  sheet(`<h2>Ton score à partager</h2><p class="small muted">Sélectionne le texte et copie-le.</p><textarea class="share-ta" readonly rows="4">${esc(text)}</textarea><button class="btn" id="ok">Fermer</button>`,
+    (root, close) => { on('#ok', 'click', close, root); const t = $('textarea', root); if (t) t.select(); });
+}
+function toast(icon, title, sub, ms = 3000) {
+  const d = document.createElement('div'); d.className = 'toast'; d.setAttribute('role', 'status');
+  d.innerHTML = `<span aria-hidden="true">${icon}</span><span><b>${esc(title)}</b>${sub ? '<br>' + esc(sub) : ''}</span>`;
+  document.body.appendChild(d); setTimeout(() => d.remove(), ms);
+}
 function countUp(el, to, suffix) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) { el.innerHTML = to + suffix; return; }
   const t0 = performance.now();
@@ -706,13 +754,28 @@ function podium() {
    ========================================================= */
 const today = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const dayDiff = (a, b) => Math.round((new Date(b + 'T12:00') - new Date(a + 'T12:00')) / 864e5);
-function streakNow() { const st = store.get('streak', { last: null, n: 0, best: 0 }); if (st.last && dayDiff(st.last, today()) > 1) st.n = 0; return st; }
+/* Joker de série : 1 par semaine (lundi → dimanche). S'il reste, un seul jour manqué ne casse pas la série. */
+const weekKey = (d = new Date()) => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return today(x); };
+const jokerFree = () => (store.get('joker', {}).week || null) !== weekKey();
+function streakNow() {
+  const st = store.get('streak', { last: null, n: 0, best: 0 }); st.saved = false;
+  if (st.last) { const dd = dayDiff(st.last, today()); if (dd === 2 && st.n > 0 && jokerFree()) st.saved = true; else if (dd > 1) st.n = 0; }
+  return st;
+}
 function markDaily(score) {
   const st = store.get('streak', { last: null, n: 0, best: 0 }), t = today();
-  if (st.last !== t) { st.n = st.last && dayDiff(st.last, t) === 1 ? st.n + 1 : 1; st.last = t; st.best = Math.max(st.best || 0, st.n); }
+  let joker = false;
+  if (st.last !== t) {
+    const dd = st.last ? dayDiff(st.last, t) : null;
+    if (dd === 1) st.n++;
+    else if (dd === 2 && st.n > 0 && jokerFree()) { st.n++; joker = true; store.set('joker', { week: weekKey(), day: t }); }
+    else st.n = 1;
+    st.last = t; st.best = Math.max(st.best || 0, st.n);
+  }
+  delete st.saved;
   store.set('streak', st); store.set('daily', { d: t, score });
   award('premier-defi'); if (st.n >= 3) award('serie3'); if (st.n >= 7) award('serie7'); if (st.n >= 30) award('serie30');
-  return st;
+  return { ...st, joker };
 }
 const BADGES = [
   ['premier-defi', '🌅', 'Premier défi', 'Réussir un défi du jour'],
@@ -750,8 +813,10 @@ function dailyGames() {
   const r = makeRng(hashStr('jour:' + today()));
   const sp = r.shuffle(GAMES.filter(g => g.cat === 'speed')), lo = r.shuffle(GAMES.filter(g => g.cat === 'logic'));
   const num = ['gue', 'bulles', 'suites', 'boutique'];
-  const pick = [sp[0], lo[0], sp[1], lo[1]];
-  const extra = r.shuffle(GAMES.filter(g => num.includes(g.id) && !pick.includes(g)))[0];
+  const pick = [sp[0], lo[0]];
+  for (const g of sp.slice(1)) if (pick.length < 3 && pairOk(pick, g)) pick.push(g);
+  for (const g of lo.slice(1)) if (pick.length < 4 && pairOk(pick, g)) pick.push(g);
+  const extra = r.shuffle(GAMES.filter(g => num.includes(g.id) && !pick.includes(g) && pairOk(pick, g)))[0];
   return [...pick, extra];
 }
 function startDaily() {
@@ -759,11 +824,53 @@ function startDaily() {
   S = { mode: 'daily', level: settings.level, seed: hashStr('jour:' + today()), games: dailyGames(), idx: 0, scores: {}, details: {}, replay };
   intro();
 }
+/* 8 jeux : une compétence différente par jeu tant que possible (7 compétences → 1 doublon au plus),
+   jamais deux jeux trop proches, 4 de rapidité et 4 de logique si possible, en alternance. */
+function expressGames(r, n = 8) {
+  let best = null, bestCost = Infinity;
+  for (let t = 0; t < 60 && bestCost > 0; t++) {
+    const pool = r.shuffle(GAMES.slice()), out = [];
+    for (const g of pool) if (out.length < n && pairOk(out, g) && !out.some(x => x.skill === g.skill)) out.push(g);
+    while (out.length < n) {
+      const cnt = g => out.filter(x => x.skill === g.skill).length;
+      const cand = pool.filter(g => !out.includes(g) && pairOk(out, g)).sort((a, b) => cnt(a) - cnt(b));
+      if (!cand.length) break; out.push(cand[0]);
+    }
+    const sp = out.filter(g => g.cat === 'speed').length, dup = out.length - new Set(out.map(g => g.skill)).size;
+    const cost = 10 * Math.max(0, dup - Math.max(0, n - Object.keys(SKILLS).length)) + Math.abs(sp - (out.length - sp));
+    if (cost < bestCost) { best = out; bestCost = cost; }
+  }
+  const sp = best.filter(g => g.cat === 'speed'), lo = best.filter(g => g.cat === 'logic'), games = [];
+  while (sp.length || lo.length) { if (sp.length) games.push(sp.shift()); if (lo.length) games.push(lo.shift()); }
+  return games;
+}
 function startExpress(level) {
-  const r = makeRng(newSeed());
-  const sp = r.shuffle(GAMES.filter(g => g.cat === 'speed')).slice(0, 4), lo = r.shuffle(GAMES.filter(g => g.cat === 'logic')).slice(0, 4);
-  const games = []; for (let i = 0; i < 4; i++) games.push(sp[i], lo[i]);
+  const games = expressGames(makeRng(newSeed()));
   S = { mode: 'solo', level, seed: newSeed(), games, idx: 0, scores: {}, details: {} };
+  intro();
+}
+/* Parcours thématique : 5 jeux de la compétence choisie, complétés par des jeux proches */
+function themeGames(r, k, n = 5) {
+  const T = THEMES[k], out = [];
+  for (const g of r.shuffle(GAMES.filter(g => g.skill === k))) if (out.length < n && pairOk(out, g)) out.push(g);
+  for (const id of r.shuffle(T.near.slice())) { const g = GAMES.find(x => x.id === id); if (out.length < n && g && !out.includes(g) && pairOk(out, g)) out.push(g); }
+  return out;
+}
+function themeSheet() {
+  sheet(`<h2>Parcours thématique</h2><p class="small muted" style="margin:-4px 0 12px">5 jeux qui font travailler la même compétence. Même écran de fin que « Jouer seul ».</p>
+    <div class="profs">${Object.entries(THEMES).map(([k, t]) => `<button class="prof" data-th="${k}"><span class="pi">${t.icon}</span><span><b>${t.name}</b><small>${t.sub}</small></span></button>`).join('')}</div>
+    <button class="btn ghost" id="cancel">Annuler</button>`, (root, close) => {
+    $$('[data-th]', root).forEach(b => b.addEventListener('click', () => {
+      const k = b.dataset.th, t = THEMES[k], games = themeGames(makeRng(newSeed()), k);
+      close();
+      readySheet(`${t.icon} Parcours ${t.name}`, `5 jeux : ${games.map(g => g.short || g.name).join(', ')}.`, level => startTheme(k, level, games));
+    }));
+    on('#cancel', 'click', close, root);
+    root.addEventListener('click', e => { if (e.target === root) close(); });
+  });
+}
+function startTheme(k, level, games) {
+  S = { mode: 'solo', theme: k, level, seed: newSeed(), games: games || themeGames(makeRng(newSeed()), k), idx: 0, scores: {}, details: {} };
   intro();
 }
 /* ---------- Duel contre Mèche ---------- */
@@ -808,7 +915,7 @@ function duelEnd(g, score, detail) {
 /* ---------- Turbo ---------- */
 function turboPick() {
   Clock.reset();
-  const list = GAMES.filter(g => g.cat === 'speed');
+  const list = GAMES.filter(g => g.cat === 'speed' && !g.noTurbo);
   app.innerHTML = `<div class="screen play">${scene('bateaux')}
     <div class="topbar"><button class="iconbtn" id="back" aria-label="Retour">←</button><span class="plaque" style="margin-left:4px">Mode turbo 🚀</span></div>
     <div class="coach">${MECHE}<div class="bubble">En turbo, tout accélère au fil de l’épreuve. Jusqu’où tiendras-tu ?</div></div>
